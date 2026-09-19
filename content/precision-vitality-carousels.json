@@ -1,0 +1,437 @@
+{
+  "tenant": "precision-vitality",
+  "template": "symptom_carousel",
+  "note": "Seed content and expected-output examples. Slide copy is literal; photo_prompt feeds the image model. Captions already satisfy the tenant compliance ruleset (5 hashtags max, comment keyword, model disclosure).",
+  "carousels": [
+    {
+      "slug": "fine-lines",
+      "kicker": "Healthy Aging",
+      "comment_keyword": "SKIN",
+      "slides": [
+        {
+          "position": 1,
+          "type": "hook",
+          "headline": "Fine lines showing up faster than they used to?",
+          "script_line": "It is rarely just your skin.",
+          "photo_prompt": "Woman, 40s. Natural window light, hand resting at the jaw. Neutral knit, minimal makeup.",
+          "alt_text": "Healthy Aging: Fine lines showing up faster than they used to?"
+        },
+        {
+          "position": 2,
+          "type": "cause",
+          "headline": "Skin is an output. These are the inputs.",
+          "sub": "Creams work on the surface. Most of what you are seeing is being driven a layer down.",
+          "items": [
+            {
+              "label": "Declining estrogen & androgens",
+              "text": "Hormone shifts thin the dermis and slow collagen and elastin production."
+            },
+            {
+              "label": "Mitochondrial slowdown",
+              "text": "Less cellular energy means slower turnover and slower repair."
+            },
+            {
+              "label": "Chronic low-grade inflammation",
+              "text": "Inflammation degrades the collagen you already have."
+            },
+            {
+              "label": "Oxidative stress",
+              "text": "Sun, alcohol, stress and poor sleep accelerate cellular aging."
+            },
+            {
+              "label": "Nutrient absorption",
+              "text": "Gut issues limit the protein, zinc and vitamin C skin is built from."
+            },
+            {
+              "label": "Cortisol & sleep debt",
+              "text": "Overnight is when repair happens. Short sleep cancels it."
+            }
+          ],
+          "alt_text": "Skin is an output. These are the inputs."
+        },
+        {
+          "position": 3,
+          "type": "protocol",
+          "headline": "What we look at — and what may help",
+          "cards": [
+            {
+              "title": "Start with data",
+              "text": "Hormone panel, thyroid, inflammatory markers and micronutrients. No protocol before labs."
+            },
+            {
+              "title": "Topical peptide therapy",
+              "text": "Formulas such as Stella+ — GHK-Cu, estriol, tretinoin and niacinamide — compounded per prescription when appropriate."
+            },
+            {
+              "title": "Cellular medicine",
+              "text": "Targeted support for mitochondrial function, oxidative stress and collagen and elastin production."
+            },
+            {
+              "title": "Foundations that compound",
+              "text": "Sleep, protein, gut health and professional-grade supplementation through Fullscript."
+            }
+          ],
+          "disclaimer": "Compounded medications are prepared per individual prescription and are not reviewed by the U.S. Food and Drug Administration for safety or efficacy. These statements have not been evaluated by the FDA. Individual results vary. Treatment is determined at evaluation and is not guaranteed.",
+          "alt_text": "What we look at — and what may help"
+        },
+        {
+          "position": 4,
+          "type": "cta",
+          "headline": "Start with a free 15-minute consult.",
+          "body": "A no-pressure conversation about your symptoms, your goals, and whether we are the right fit. No commitment, no cost.",
+          "trust_points": [
+            "Telehealth across California, plus in-person in Yorba Linda",
+            "Diagnostics first — no protocol before labs",
+            "Cash-pay practice. No insurance, no restrictions"
+          ],
+          "alt_text": "Book a free 15-minute consult with Precision Vitality."
+        }
+      ],
+      "caption": "Fine lines are not only a skin problem.\n\nCollagen and elastin production is driven by your hormones, your mitochondria, your inflammatory load and how well you actually absorb nutrients. A topical works on the surface. We start one layer down — with labs.\n\nEvery plan at Precision Vitality begins with diagnostics, never with a product.\n\nComment SKIN and I will send you the panel we run before we recommend anything.\n\nFree 15-minute consult — link in bio. Telehealth across California, in-person in Yorba Linda.\n\nImages are models, not patients.\n\n#healthyaging #functionalmedicine #cellularmedicine #yorbalinda #rootcause"
+    },
+    {
+      "slug": "mens-hormones",
+      "kicker": "Men's Health",
+      "comment_keyword": "PANEL",
+      "slides": [
+        {
+          "position": 1,
+          "type": "hook",
+          "headline": "Things not working like they used to?",
+          "script_line": "Low T is only one of the answers.",
+          "photo_prompt": "Man, 45–55. Outdoor golden hour, relaxed, looking off-camera. Not clinical.",
+          "alt_text": "Men's Health: Things not working like they used to?"
+        },
+        {
+          "position": 2,
+          "type": "cause",
+          "headline": "Six things we check before anyone says “low T”",
+          "sub": "A single testosterone number is the most common reason men get the wrong plan.",
+          "items": [
+            {
+              "label": "Total & free testosterone",
+              "text": "Total can look normal while free — the usable kind — is low."
+            },
+            {
+              "label": "Estradiol & SHBG",
+              "text": "Too much conversion, or too much binding, blunts the testosterone you already have."
+            },
+            {
+              "label": "Insulin resistance & visceral fat",
+              "text": "Abdominal fat raises estrogen and pushes testosterone down."
+            },
+            {
+              "label": "Sleep apnea & sleep debt",
+              "text": "Most testosterone is produced during deep sleep."
+            },
+            {
+              "label": "Thyroid",
+              "text": "Low thyroid mimics low testosterone almost symptom for symptom."
+            },
+            {
+              "label": "Medications & vascular health",
+              "text": "Blood pressure, blood sugar and several common prescriptions all affect performance."
+            }
+          ],
+          "alt_text": "Six things we check before anyone says “low T”"
+        },
+        {
+          "position": 3,
+          "type": "protocol",
+          "headline": "What a real plan looks like",
+          "cards": [
+            {
+              "title": "A full panel, not one number",
+              "text": "Total and free testosterone, SHBG, estradiol, LH, PSA, A1c, lipids, full thyroid, CBC and CMP."
+            },
+            {
+              "title": "Bioidentical hormone therapy",
+              "text": "Protocols dosed to your labs and your symptoms, with an aromatase inhibitor only when indicated."
+            },
+            {
+              "title": "Metabolic optimization",
+              "text": "Body composition, insulin and visceral fat move the same dial testosterone does."
+            },
+            {
+              "title": "Monitored, then adjusted",
+              "text": "Repeat labs, dose changes and ongoing management. Medication shipped to your door."
+            }
+          ],
+          "disclaimer": "Compounded medications are prepared per individual prescription and are not reviewed by the U.S. Food and Drug Administration for safety or efficacy. These statements have not been evaluated by the FDA. Individual results vary. Treatment is determined at evaluation and is not guaranteed.",
+          "alt_text": "What a real plan looks like"
+        },
+        {
+          "position": 4,
+          "type": "cta",
+          "headline": "Start with a free 15-minute consult.",
+          "body": "A no-pressure conversation about your symptoms, your goals, and whether we are the right fit. No commitment, no cost.",
+          "trust_points": [
+            "Telehealth across California, plus in-person in Yorba Linda",
+            "Diagnostics first — no protocol before labs",
+            "Cash-pay practice. No insurance, no restrictions"
+          ],
+          "alt_text": "Book a free 15-minute consult with Precision Vitality."
+        }
+      ],
+      "caption": "Most men get handed a testosterone number and a prescription. That skips the part that matters.\n\nFree testosterone, estradiol, SHBG, thyroid, insulin resistance, sleep — any one of them can produce the same symptoms, and treating the wrong one wastes months.\n\nWe run the full panel first, then build the protocol around what it says.\n\nComment PANEL and I will send you the full list of what we test before anyone talks about testosterone.\n\nFree 15-minute consult — link in bio. Telehealth across California, in-person in Yorba Linda.\n\nImages are models, not patients.\n\n#menshealth #testosterone #hormonehealth #yorbalinda #functionalmedicine"
+    },
+    {
+      "slug": "low-libido",
+      "kicker": "Women's Health",
+      "comment_keyword": "DRIVE",
+      "slides": [
+        {
+          "position": 1,
+          "type": "hook",
+          "headline": "Never in the mood anymore?",
+          "script_line": "You are not broken. You are depleted.",
+          "photo_prompt": "Woman, 35–50. Soft morning light, seated, quiet and unposed. Warm neutrals.",
+          "alt_text": "Women's Health: Never in the mood anymore?"
+        },
+        {
+          "position": 2,
+          "type": "cause",
+          "headline": "Low libido is a symptom, not a diagnosis",
+          "sub": "Desire is usually the first thing the body drops when something upstream is off. Six of the usual suspects:",
+          "items": [
+            {
+              "label": "Thyroid",
+              "text": "Hypothyroidism flattens energy, mood and desire — and it is routinely missed."
+            },
+            {
+              "label": "Low ferritin & B12",
+              "text": "Hemoglobin can read normal while your iron stores are empty."
+            },
+            {
+              "label": "Cortisol & burnout",
+              "text": "The body deprioritizes libido when it believes you are under threat."
+            },
+            {
+              "label": "Perimenopausal shifts",
+              "text": "Estrogen and progesterone start moving years before periods change."
+            },
+            {
+              "label": "Antidepressants",
+              "text": "SSRIs and SNRIs are one of the most common — and most addressable — causes."
+            },
+            {
+              "label": "Blood sugar & sleep",
+              "text": "Glucose swings and short sleep hit desire before they hit anything else."
+            }
+          ],
+          "alt_text": "Low libido is a symptom, not a diagnosis"
+        },
+        {
+          "position": 3,
+          "type": "protocol",
+          "headline": "Where we start",
+          "cards": [
+            {
+              "title": "A panel that actually looks",
+              "text": "Full thyroid, ferritin, estradiol, progesterone, DHEA-S, cortisol, A1c, B12 and vitamin D."
+            },
+            {
+              "title": "A medication review",
+              "text": "If your prescription is driving this, alternatives exist. That is a conversation worth having."
+            },
+            {
+              "title": "Gut-brain assessment",
+              "text": "GI-MAP testing when absorption, inflammation or mood symptoms point in that direction."
+            },
+            {
+              "title": "Nervous system support",
+              "text": "Referral to our functional partner for somatic and stress-regulation work when it fits."
+            }
+          ],
+          "disclaimer": "Care is individualized and begins with diagnostic testing. Treatment is determined at evaluation and is not guaranteed. Precision Vitality serves patients located in California. This is not medical advice.",
+          "alt_text": "Where we start"
+        },
+        {
+          "position": 4,
+          "type": "cta",
+          "headline": "Start with a free 15-minute consult.",
+          "body": "A no-pressure conversation about your symptoms, your goals, and whether we are the right fit. No commitment, no cost.",
+          "trust_points": [
+            "Telehealth across California, plus in-person in Yorba Linda",
+            "Diagnostics first — no protocol before labs",
+            "Cash-pay practice. No insurance, no restrictions"
+          ],
+          "alt_text": "Book a free 15-minute consult with Precision Vitality."
+        }
+      ],
+      "caption": "“I just don't have a drive anymore.” We hear it constantly, and it is almost never the whole story.\n\nThyroid. Ferritin. Cortisol. Perimenopause. Blood sugar. The medication that helped your mood and quietly took something else with it. Low libido is the symptom sitting on top of all of it.\n\nIt is worth testing before you decide this is just who you are now.\n\nComment DRIVE and I will send you the full panel we run before anyone calls this normal.\n\nFree 15-minute consult — link in bio. Telehealth across California, in-person in Yorba Linda.\n\nImages are models, not patients.\n\n#womenshealth #perimenopause #thyroidhealth #yorbalinda #functionalmedicine"
+    },
+    {
+      "slug": "energy-fatigue",
+      "kicker": "Energy & Longevity",
+      "comment_keyword": "TIRED",
+      "slides": [
+        {
+          "position": 1,
+          "type": "hook",
+          "headline": "Wrecked by 2pm. Wired at 11pm.",
+          "script_line": "That is a pattern, not a personality.",
+          "photo_prompt": "Late afternoon light on a desk or kitchen counter. Coffee cup, hand at temple.",
+          "alt_text": "Energy & Longevity: Wrecked by 2pm. Wired at 11pm."
+        },
+        {
+          "position": 2,
+          "type": "cause",
+          "headline": "When your energy curve flips",
+          "sub": "Afternoon crashes and second winds at night usually point to something measurable.",
+          "items": [
+            {
+              "label": "Cortisol rhythm",
+              "text": "It should peak in the morning and fall at night. Often it is doing the opposite."
+            },
+            {
+              "label": "Mitochondrial dysfunction",
+              "text": "Your cells produce less energy. Everything downstream feels it."
+            },
+            {
+              "label": "Blood sugar swings",
+              "text": "The 2pm crash usually starts with what happened at 8am."
+            },
+            {
+              "label": "Thyroid",
+              "text": "Subclinical hypothyroidism rarely shows up on a TSH-only panel."
+            },
+            {
+              "label": "Ferritin, B12 & vitamin D",
+              "text": "Three of the most common and most correctable deficiencies we find."
+            },
+            {
+              "label": "Chronic inflammation",
+              "text": "Inflammation is metabolically expensive. It costs you energy."
+            }
+          ],
+          "alt_text": "When your energy curve flips"
+        },
+        {
+          "position": 3,
+          "type": "protocol",
+          "headline": "What may help",
+          "cards": [
+            {
+              "title": "Diagnostics first",
+              "text": "Full thyroid, cortisol rhythm, ferritin, B12, vitamin D, A1c, lipids and inflammatory markers."
+            },
+            {
+              "title": "Cellular medicine",
+              "text": "Support aimed at mitochondrial function, cellular energy and oxidative stress, including NAD+ protocols."
+            },
+            {
+              "title": "Thyroid optimization",
+              "text": "Treated to the full panel and your symptoms, not to a single reference range."
+            },
+            {
+              "title": "Metabolic optimization",
+              "text": "Stabilize glucose, body composition and the inflammatory load driving the crash."
+            }
+          ],
+          "disclaimer": "Compounded medications are prepared per individual prescription and are not reviewed by the U.S. Food and Drug Administration for safety or efficacy. These statements have not been evaluated by the FDA. Individual results vary. Treatment is determined at evaluation and is not guaranteed.",
+          "alt_text": "What may help"
+        },
+        {
+          "position": 4,
+          "type": "cta",
+          "headline": "Start with a free 15-minute consult.",
+          "body": "A no-pressure conversation about your symptoms, your goals, and whether we are the right fit. No commitment, no cost.",
+          "trust_points": [
+            "Telehealth across California, plus in-person in Yorba Linda",
+            "Diagnostics first — no protocol before labs",
+            "Cash-pay practice. No insurance, no restrictions"
+          ],
+          "alt_text": "Book a free 15-minute consult with Precision Vitality."
+        }
+      ],
+      "caption": "If you are exhausted at 2pm and wide awake at 11pm, that is not a discipline problem. That is a cortisol curve running backwards, and it shows up on a lab.\n\nThyroid, ferritin, B12, vitamin D, blood sugar, inflammation, mitochondrial function — all measurable, most correctable, and most of them never checked.\n\nComment TIRED and I will send you the panel that explains the 2pm crash.\n\nFree 15-minute consult — link in bio. Telehealth across California, in-person in Yorba Linda.\n\n#fatigue #cortisol #thyroidhealth #cellularmedicine #yorbalinda"
+    },
+    {
+      "slug": "brain-fog",
+      "kicker": "Gut-Brain Medicine",
+      "comment_keyword": "FOG",
+      "slides": [
+        {
+          "position": 1,
+          "type": "hook",
+          "headline": "Brain fog that will not lift?",
+          "script_line": "Start one floor down.",
+          "photo_prompt": "Hands around a mug, soft kitchen light, shallow depth of field. Calm, not clinical.",
+          "alt_text": "Gut-Brain Medicine: Brain fog that will not lift?"
+        },
+        {
+          "position": 2,
+          "type": "cause",
+          "headline": "The brain does not work in isolation",
+          "sub": "Before we adjust anything psychiatric, we look at the biological environment the brain is operating in.",
+          "items": [
+            {
+              "label": "Dysbiosis",
+              "text": "An imbalanced microbiome changes the signals your brain receives."
+            },
+            {
+              "label": "Intestinal permeability",
+              "text": "A compromised gut barrier drives systemic and neuro-inflammation."
+            },
+            {
+              "label": "Malabsorption",
+              "text": "B12, iron, magnesium and amino acids are the raw material for neurotransmitters."
+            },
+            {
+              "label": "Blood sugar instability",
+              "text": "The brain runs on glucose. Unstable input, unstable output."
+            },
+            {
+              "label": "Medication effects",
+              "text": "Some prescriptions contribute to the fog they were meant to lift."
+            },
+            {
+              "label": "Sleep & cortisol",
+              "text": "Deep sleep is when the brain clears. Less of it shows up as fog."
+            }
+          ],
+          "alt_text": "The brain does not work in isolation"
+        },
+        {
+          "position": 3,
+          "type": "protocol",
+          "headline": "How we investigate",
+          "cards": [
+            {
+              "title": "GI-MAP testing",
+              "text": "Comprehensive stool analysis for pathogens, dysbiosis, inflammatory and digestive markers and gut barrier function."
+            },
+            {
+              "title": "A targeted gut protocol",
+              "text": "Built from your results, not a generic cleanse. Antimicrobials, binders and professional-grade supplements as indicated."
+            },
+            {
+              "title": "Psychiatric medication review",
+              "text": "Medication management that accounts for the gut-brain axis, not just the symptom list."
+            },
+            {
+              "title": "Cellular support",
+              "text": "Nutrients and, where appropriate, compounded peptides aimed at gut lining repair and inflammation."
+            }
+          ],
+          "disclaimer": "Compounded medications are prepared per individual prescription and are not reviewed by the U.S. Food and Drug Administration for safety or efficacy. These statements have not been evaluated by the FDA. Individual results vary. Treatment is determined at evaluation and is not guaranteed.",
+          "alt_text": "How we investigate"
+        },
+        {
+          "position": 4,
+          "type": "cta",
+          "headline": "Start with a free 15-minute consult.",
+          "body": "A no-pressure conversation about your symptoms, your goals, and whether we are the right fit. No commitment, no cost.",
+          "trust_points": [
+            "Telehealth across California, plus in-person in Yorba Linda",
+            "Diagnostics first — no protocol before labs",
+            "Cash-pay practice. No insurance, no restrictions"
+          ],
+          "alt_text": "Book a free 15-minute consult with Precision Vitality."
+        }
+      ],
+      "caption": "Brain fog gets treated as a mood problem more often than it should be.\n\nDysbiosis, a compromised gut barrier, malabsorbed B12 and iron, unstable blood sugar, lost deep sleep — all of it changes how the brain runs, and none of it shows up in a 15-minute med check.\n\nGut-brain medicine means testing the environment before adjusting the chemistry.\n\nComment FOG and I will send you what a GI-MAP actually tests for.\n\nFree 15-minute consult — link in bio. Telehealth across California, in-person in Yorba Linda.\n\nImages are models, not patients.\n\n#brainfog #gutbrain #guthealth #psychiatry #yorbalinda"
+    }
+  ]
+}

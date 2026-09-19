@@ -1,0 +1,264 @@
+{
+  "_comment": "Not a live tenant. This is the worked example for tenants 2–15: a different vertical, a different ruleset, zero code changes. Copy it into tenants/ and seed it to make it real.",
+  "slug": "ativo-example",
+  "name": "Ativo Senior Living (example)",
+  "vertical": "senior-living",
+  "website": "https://example.com",
+  "booking_url": "https://example.com/tour",
+  "locale": "en-US",
+  "timezone": "America/Chicago",
+  "brand_tokens": {
+    "color": {
+      "navy": "#2B3A55",
+      "cream": "#FAF7F2",
+      "sage": "#6B7A5A",
+      "sage_tint": "#E8EADF",
+      "gold": "#B08D57",
+      "gold_text": "#7C6236",
+      "gold_light": "#D0B078",
+      "slate": "#5C6873",
+      "rule": "#E0DACE",
+      "card_border": "#E5DFD3",
+      "navy_sub": "#CAD3DE",
+      "navy_footer": "#A9B6C6",
+      "navy_rule": "#3D5173"
+    },
+    "font": {
+      "display": "Cormorant Garamond",
+      "body": "Jost",
+      "script": "Parisienne"
+    }
+  },
+  "output": {
+    "width": 1080,
+    "height": 1350,
+    "aspect": "4:5",
+    "format": "jpeg",
+    "color_space": "srgb",
+    "max_bytes": 8388608
+  },
+  "compliance_rules": {
+    "ruleset": "us-senior-living-fair-housing",
+    "blocking": [
+      {
+        "id": "fair-housing-no-preference-language",
+        "test": "copy states a preference, limitation or discrimination based on a protected class",
+        "reason": "42 U.S.C. 3604(c) prohibits advertising that indicates a preference or limitation based on race, color, religion, sex, handicap, familial status or national origin.",
+        "check": "banned_phrases",
+        "fix": "Describe the community and its amenities, never the people who would fit in.",
+        "params": {
+          "phrases": [
+            "perfect for christian",
+            "christian community",
+            "no children",
+            "adults only",
+            "able-bodied",
+            "must be able to walk",
+            "no wheelchairs",
+            "ideal for couples",
+            "traditional families",
+            "exclusive community",
+            "restricted community"
+          ]
+        }
+      },
+      {
+        "id": "hopa-age-claim-requires-qualification",
+        "test": "copy advertises an age restriction without the HOPA qualification line",
+        "reason": "Housing for Older Persons Act exemptions must be supported by the community's actual qualification and stated accurately (24 CFR 100.304).",
+        "check": "pattern_match",
+        "fix": "Use the community's verified HOPA status wording, or drop the age claim.",
+        "params": {
+          "patterns": [
+            "\\b55\\s*\\+",
+            "\\b62\\s*\\+",
+            "\\bage[- ]restricted\\b",
+            "\\bseniors? only\\b",
+            "\\b55 (?:and|or) (?:older|over|better)\\b"
+          ],
+          "except_patterns": [
+            "qualif\\w+ under the Housing for Older Persons Act",
+            "HOPA"
+          ],
+          "except_window": 220
+        }
+      },
+      {
+        "id": "resident-photo-release-required",
+        "test": "a photo shows an identifiable resident and the caption lacks the release disclosure",
+        "reason": "Residents' likenesses require a signed release. AI-generated people are not residents and must never be implied to be.",
+        "check": "required_caption_line",
+        "fix": "Add the disclosure line, or use a photo with no identifiable person.",
+        "params": {
+          "line": "Photography does not depict current residents.",
+          "when": "photo_of_person",
+          "person_terms": [
+            "resident",
+            "senior",
+            "woman",
+            "man",
+            "person",
+            "people",
+            "couple",
+            "family",
+            "portrait",
+            "face"
+          ]
+        }
+      },
+      {
+        "id": "no-care-outcome-claims",
+        "test": "copy promises a care or health outcome",
+        "reason": "Assisted living is not licensed to promise clinical outcomes; state regulators treat outcome promises as deceptive advertising.",
+        "check": "banned_phrases",
+        "fix": "Describe the service offered, not the result it produces.",
+        "params": {
+          "phrases": [
+            "cures",
+            "prevents falls",
+            "guaranteed",
+            "reverses dementia",
+            "eliminates",
+            "will improve"
+          ],
+          "except_patterns": [
+            "\\b(?:is|are|was|were|be) not guaranteed\\b"
+          ],
+          "except_window": 40
+        }
+      },
+      {
+        "id": "hashtag-cap",
+        "test": "caption contains more than 5 hashtags",
+        "reason": "Instagram caps hashtags at 5.",
+        "check": "max_hashtags",
+        "fix": "Remove hashtags until five remain.",
+        "params": {
+          "max": 5
+        }
+      }
+    ],
+    "warnings": [
+      {
+        "id": "familial-status-framing",
+        "test": "copy addresses adult children rather than the prospective resident",
+        "reason": "Not prohibited, but 'for your mom' framing drifts toward familial-status language. Worth a human read.",
+        "check": "pattern_match",
+        "fix": "Consider addressing the prospective resident directly.",
+        "params": {
+          "patterns": [
+            "\\byour (?:mom|mother|dad|father|parents?)\\b",
+            "\\bloved ones?\\b"
+          ]
+        }
+      },
+      {
+        "id": "pricing-transparency",
+        "test": "copy mentions price without a starting-rate disclosure",
+        "reason": "Several states require advertised rates to disclose what is and is not included.",
+        "check": "pattern_match",
+        "fix": "State what the rate includes, or omit pricing from social entirely.",
+        "params": {
+          "patterns": [
+            "\\$\\d[\\d,]*"
+          ]
+        }
+      }
+    ],
+    "required_caption_elements": [
+      "tour_cta",
+      "equal_housing_statement"
+    ],
+    "posting_windows": {
+      "preferred": [
+        "Tue 10:00",
+        "Thu 10:00",
+        "any weekend 14:00"
+      ],
+      "avoid": [
+        "Monday"
+      ]
+    }
+  },
+  "templates": {
+    "symptom_carousel": {
+      "slides": 4,
+      "structure": [
+        "hook",
+        "cause",
+        "protocol",
+        "cta"
+      ],
+      "slide_specs": {
+        "hook": {
+          "has_photo": true,
+          "photo_slot": {
+            "x": 0,
+            "y": 0,
+            "w": 1080,
+            "h": 560
+          },
+          "elements": [
+            "kicker",
+            "headline",
+            "script_line",
+            "swipe_affordance"
+          ],
+          "headline_max_words": 8,
+          "rule": "One question a family is already asking. Never a floor-plan name."
+        },
+        "cause": {
+          "has_photo": false,
+          "elements": [
+            "kicker",
+            "headline",
+            "sub",
+            "items",
+            "footer"
+          ],
+          "items": {
+            "min": 4,
+            "max": 6
+          },
+          "rule": "What to look for on a tour. One line each."
+        },
+        "protocol": {
+          "has_photo": false,
+          "elements": [
+            "kicker",
+            "headline",
+            "cards",
+            "disclaimer",
+            "footer"
+          ],
+          "cards": {
+            "count": 4
+          },
+          "rule": "What the community actually provides. Services, never outcomes."
+        },
+        "cta": {
+          "has_photo": false,
+          "background": "navy",
+          "elements": [
+            "kicker",
+            "headline",
+            "body",
+            "trust_points",
+            "button",
+            "footer"
+          ],
+          "rule": "Book a tour. Identical on every carousel."
+        }
+      }
+    }
+  },
+  "disclaimers": {
+    "general": "Services described are subject to availability and assessment. Equal Housing Opportunity.",
+    "model": "Photography does not depict current residents."
+  },
+  "footer": {
+    "left": "example.com",
+    "right": "Assisted Living · Memory Care",
+    "contact": "(000) 000-0000 · Example, IL"
+  }
+}

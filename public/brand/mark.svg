@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="zInstaPoster mark">
+  <title>zInstaPoster</title>
+  <rect width="256" height="256" rx="44" fill="#FFF6E9"/>
+
+  <!-- speed lines: it's being flung -->
+  <g stroke="#E8563A" stroke-width="9" stroke-linecap="round" fill="none">
+    <path d="M28 96 C 44 94, 58 95, 70 97"/>
+    <path d="M20 132 C 40 129, 56 131, 68 133"/>
+    <path d="M34 168 C 48 166, 60 167, 72 169"/>
+  </g>
+
+  <!-- polaroid, tilted and deliberately wobbly -->
+  <g transform="rotate(-8 168 128)">
+    <path d="M100 52 C 138 46, 188 48, 224 54 C 229 92, 228 152, 223 196
+             C 186 203, 134 202, 98 196 C 93 156, 94 92, 100 52 Z"
+          fill="#FFFFFF" stroke="#1C1A17" stroke-width="9"
+          stroke-linejoin="round"/>
+
+    <!-- photo window -->
+    <path d="M112 66 C 142 62, 182 63, 211 67 C 214 94, 214 130, 211 158
+             C 181 163, 141 162, 111 158 C 108 130, 108 94, 112 66 Z"
+          fill="#FFD7C2" stroke="#1C1A17" stroke-width="7"
+          stroke-linejoin="round"/>
+
+    <!-- dumb happy face, scrawled -->
+    <g fill="#1C1A17">
+      <ellipse cx="143" cy="104" rx="7.5" ry="9"/>
+      <ellipse cx="182" cy="103" rx="7.5" ry="9"/>
+    </g>
+    <path d="M138 126 C 148 142, 176 143, 187 125"
+          stroke="#1C1A17" stroke-width="8" stroke-linecap="round" fill="none"/>
+
+    <!-- polaroid chin scribble -->
+    <path d="M120 180 C 140 177, 168 177, 190 180"
+          stroke="#C9C2B6" stroke-width="7" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

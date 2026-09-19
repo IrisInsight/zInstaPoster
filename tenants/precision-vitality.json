@@ -1,0 +1,396 @@
+{
+  "slug": "precision-vitality",
+  "name": "Precision Vitality",
+  "vertical": "medical-practice",
+  "website": "https://precision-vitality.com",
+  "booking_url": "https://precisionvitalitynursing.md-hq.com/embedded/schedule.php",
+  "locale": "en-US",
+  "timezone": "America/Los_Angeles",
+  "brand_tokens": {
+    "color": {
+      "navy": "#17395C",
+      "cream": "#F7F4ED",
+      "sage": "#56653C",
+      "sage_tint": "#E4E7DA",
+      "gold": "#A08A4B",
+      "gold_text": "#7A6534",
+      "gold_light": "#C9A961",
+      "slate": "#5A6B7D",
+      "rule": "#DED8C8",
+      "card_border": "#E3DDCC",
+      "navy_sub": "#C8D2DC",
+      "navy_footer": "#A8BACA",
+      "navy_rule": "#2E5175"
+    },
+    "font": {
+      "display": "Cormorant Garamond",
+      "body": "Jost",
+      "script": "Parisienne"
+    },
+    "contrast_notes": [
+      "gold #A08A4B is decoration only — 3.04:1 on cream, fails below 24px",
+      "gold_text #7A6534 is the text-safe gold — 5.0:1 on cream",
+      "slate #5A6B7D on cream is 4.87:1 — do not lighten"
+    ]
+  },
+  "output": {
+    "width": 1080,
+    "height": 1350,
+    "aspect": "4:5",
+    "format": "jpeg",
+    "color_space": "srgb",
+    "max_bytes": 8388608
+  },
+  "compliance_rules": {
+    "ruleset": "us-medical-practice-ca-np",
+    "blocking": [
+      {
+        "id": "no-fda-approved-compounded",
+        "test": "caption or slide copy contains 'FDA-approved' or 'FDA approved' within 200 chars of a compounded product or peptide name",
+        "reason": "Misleading promotion of a compounded drug is misbranding under 21 U.S.C. 352(bb). Active FDA enforcement area.",
+        "check": "phrase_proximity",
+        "params": {
+          "phrases": [
+            "FDA-approved",
+            "FDA approved",
+            "FDA-cleared",
+            "FDA cleared"
+          ],
+          "near": [
+            "compounded",
+            "compound",
+            "peptide",
+            "peptides",
+            "GHK-Cu",
+            "Stella+",
+            "estriol",
+            "tretinoin",
+            "semaglutide",
+            "tirzepatide",
+            "NAD+",
+            "bioidentical",
+            "troche",
+            "pellet"
+          ],
+          "window": 200
+        },
+        "fix": "Remove the claim, or name the mechanism instead."
+      },
+      {
+        "id": "no-outcome-claims",
+        "test": "copy asserts a specific health outcome rather than a mechanism",
+        "reason": "FTC Health Products Compliance Guidance requires competent and reliable scientific evidence, generally RCT-grade, for health-benefit claims. Use 'may support <mechanism>', never 'erases/cures/fixes'.",
+        "allowed_phrasing": [
+          "may support",
+          "may help",
+          "aimed at",
+          "designed to support"
+        ],
+        "banned_phrasing": [
+          "erases",
+          "cures",
+          "eliminates",
+          "guaranteed",
+          "reverses",
+          "fixes"
+        ],
+        "check": "banned_phrases",
+        "params": {
+          "phrases": [
+            "erases",
+            "erase",
+            "cures",
+            "cure",
+            "eliminates",
+            "eliminate",
+            "guaranteed",
+            "guarantee",
+            "reverses",
+            "reverse",
+            "fixes",
+            "fix",
+            "proven to",
+            "clinically proven"
+          ],
+          "except_patterns": [
+            "\\b(?:is|are|was|were|be) not guaranteed\\b",
+            "\\bno guarantee\\b",
+            "\\bcannot be guaranteed\\b",
+            "\\bnothing is guaranteed\\b"
+          ],
+          "except_window": 40
+        },
+        "fix": "Rewrite as a mechanism: “may support …”, “aimed at …”."
+      },
+      {
+        "id": "no-price-ranges",
+        "test": "copy contains 'starting at', 'as low as', 'from $', 'and up'",
+        "reason": "CA Bus & Prof Code 651(c) requires exact prices. Range pricing is prohibited.",
+        "check": "banned_phrases",
+        "params": {
+          "phrases": [
+            "starting at",
+            "as low as",
+            "from $",
+            "and up",
+            "prices start"
+          ]
+        },
+        "fix": "State an exact price, or no price at all."
+      },
+      {
+        "id": "model-disclosure-required",
+        "test": "post includes a photo of a person and the caption lacks a model/AI disclosure line",
+        "reason": "CA Bus & Prof Code 651(b)(3)(B) — unlabeled stock imagery is a violation on its own. AI-generated people are untested under this rule; disclose.",
+        "required_line": "Images are models, not patients.",
+        "check": "required_caption_line",
+        "params": {
+          "line": "Images are models, not patients.",
+          "when": "photo_of_person",
+          "person_terms": [
+            "woman",
+            "women",
+            "man",
+            "men",
+            "person",
+            "people",
+            "patient",
+            "model",
+            "portrait",
+            "face",
+            "couple",
+            "family",
+            "resident",
+            "senior",
+            "boy",
+            "girl",
+            "adult",
+            "male",
+            "female"
+          ]
+        },
+        "fix": "Add the disclosure line to the caption."
+      },
+      {
+        "id": "hashtag-cap",
+        "test": "caption contains more than 5 hashtags",
+        "reason": "Instagram caps hashtags at 5. Using them at volume measured -31.7% views.",
+        "check": "max_hashtags",
+        "params": {
+          "max": 5
+        },
+        "fix": "Remove hashtags until five remain."
+      },
+      {
+        "id": "no-patient-identification",
+        "test": "copy or reply text identifies, confirms, or implies that a named individual is a patient",
+        "reason": "The only fact pattern OCR has actually penalized on social media. $10,000-$50,000 range. Applies to comment and review replies as well as posts.",
+        "check": "pattern_match",
+        "params": {
+          "patterns": [
+            "\\bmy (?:patient|client)\\b",
+            "\\bour (?:patient|client)\\b",
+            "\\b(?:he|she|they) (?:is|are|was|were) (?:a |my |our )?patient\\b",
+            "\\bpatient (?:named|called)\\b",
+            "\\bthanks? (?:to )?@\\w+ for (?:trusting|coming|letting)",
+            "\\bcame (?:in|to see me) (?:last|this) \\w+\\b"
+          ]
+        },
+        "fix": "Remove anything that identifies or implies an individual is a patient."
+      },
+      {
+        "id": "no-testimonials-without-authorization",
+        "test": "copy contains a patient testimonial or quoted outcome",
+        "reason": "Requires a standalone signed authorization under 45 CFR 164.508, never bundled into intake. A testimonial also cannot carry a claim the practice could not make directly.",
+        "check": "pattern_match",
+        "params": {
+          "patterns": [
+            "[“\\\"][^”\\\"]{25,}[”\\\"]\\s*[—–-]\\s*[A-Z]",
+            "\\b(?:one|a|my|our) (?:patient|client) (?:told|said|wrote|reported|shared)\\b",
+            "\\bafter (?:just )?\\d+ (?:days|weeks|months)[^.]{0,60}\\bI (?:felt|had|lost|gained)\\b",
+            "\\b\\d+ (?:pounds|lbs) (?:down|lost) in \\d+\\b"
+          ]
+        },
+        "fix": "Remove the testimonial, or obtain a standalone 45 CFR 164.508 authorization first."
+      },
+      {
+        "id": "compounded-disclaimer-required",
+        "test": "a compounded product or peptide is named but the protocol slide omits the FDA disclaimer",
+        "reason": "Promotion of a compounded drug without the non-FDA-reviewed disclaimer is misleading under 21 U.S.C. 352(a) and is an active FDA enforcement area.",
+        "check": "conditional_disclaimer",
+        "fix": "Add the compounded disclaimer to the protocol slide.",
+        "params": {
+          "triggers": [
+            "compounded",
+            "peptide",
+            "peptides",
+            "GHK-Cu",
+            "Stella+",
+            "estriol",
+            "tretinoin",
+            "bioidentical",
+            "NAD+"
+          ],
+          "slide_type": "protocol",
+          "disclaimer_text": "Compounded medications are prepared per individual prescription and are not reviewed by the U.S. Food and Drug Administration for safety or efficacy. These statements have not been evaluated by the FDA. Individual results vary. Treatment is determined at evaluation and is not guaranteed."
+        }
+      }
+    ],
+    "warnings": [
+      {
+        "id": "second-person-condition-framing",
+        "test": "copy addresses the reader as having a medical condition (second person)",
+        "reason": "Compliant organically; breaks Meta ad policy the moment the post is boosted. Flag so a human decides before promoting.",
+        "check": "pattern_match",
+        "params": {
+          "patterns": [
+            "\\byour (?:thyroid|hormones?|cortisol|gut|labs?|symptoms?|condition|diagnosis|depression|anxiety|libido|testosterone)\\b",
+            "\\byou are (?:depleted|exhausted|broken|struggling|suffering)\\b",
+            "\\bif you(?:'re| are) (?:tired|exhausted|foggy|depressed|anxious)\\b",
+            "\\byou(?:'re| are) not broken\\b"
+          ]
+        },
+        "fix": "Fine organically. Re-read before boosting this post as an ad."
+      },
+      {
+        "id": "scope-check-female-hormones",
+        "test": "copy implies female hormone replacement therapy",
+        "reason": "Practice lists male hormone optimization only. Confirm scope before publishing.",
+        "check": "pattern_match",
+        "params": {
+          "patterns": [
+            "\\b(?:estradiol|estrogen|progesterone|perimenopaus\\w*|menopaus\\w*|HRT)\\b",
+            "\\bfemale hormone (?:therapy|replacement)\\b"
+          ]
+        },
+        "fix": "Confirm the practice's published scope covers this before publishing."
+      },
+      {
+        "id": "caption-comment-keyword-cta",
+        "test": "caption asks for a comment keyword",
+        "reason": "Comment-keyword CTAs are how this account routes interest into DMs. Required caption element.",
+        "check": "requires_one_of",
+        "message": "Caption has no comment-keyword call to action.",
+        "fix": "Add a line like “Comment PANEL and I will send you …”.",
+        "params": {
+          "patterns": [
+            "\\bcomment\\s+[A-Z]{3,}\\b"
+          ]
+        }
+      },
+      {
+        "id": "caption-consult-line",
+        "test": "caption offers the free consult and says where care is available",
+        "reason": "Required caption element for this tenant. The consult is the practice's only conversion path.",
+        "check": "requires_one_of",
+        "message": "Caption is missing the consult line.",
+        "fix": "Add the 15-minute consult line with the link-in-bio pointer.",
+        "params": {
+          "patterns": [
+            "15-minute consult",
+            "free consult"
+          ]
+        }
+      }
+    ],
+    "required_caption_elements": [
+      "comment_keyword_cta",
+      "consult_line",
+      "model_disclosure_if_photo"
+    ],
+    "posting_windows": {
+      "preferred": [
+        "Wed 12:00",
+        "Wed 18:00",
+        "Thu 09:00",
+        "any weekday 19:00-21:00"
+      ],
+      "avoid": [
+        "Friday",
+        "Saturday"
+      ]
+    }
+  },
+  "templates": {
+    "symptom_carousel": {
+      "slides": 4,
+      "structure": [
+        "hook",
+        "cause",
+        "protocol",
+        "cta"
+      ],
+      "slide_specs": {
+        "hook": {
+          "has_photo": true,
+          "photo_slot": {
+            "x": 0,
+            "y": 0,
+            "w": 1080,
+            "h": 560
+          },
+          "elements": [
+            "kicker",
+            "headline",
+            "script_line",
+            "swipe_affordance"
+          ],
+          "headline_max_words": 8,
+          "rule": "One symptom in the patient's own words. Never a service name."
+        },
+        "cause": {
+          "has_photo": false,
+          "elements": [
+            "kicker",
+            "headline",
+            "sub",
+            "items",
+            "footer"
+          ],
+          "items": {
+            "min": 5,
+            "max": 6
+          },
+          "rule": "This is the slide people save. One line per driver."
+        },
+        "protocol": {
+          "has_photo": false,
+          "elements": [
+            "kicker",
+            "headline",
+            "cards",
+            "disclaimer",
+            "footer"
+          ],
+          "cards": {
+            "count": 4
+          },
+          "rule": "Name mechanisms, never outcomes. Disclaimer is mandatory when a compounded product is named."
+        },
+        "cta": {
+          "has_photo": false,
+          "background": "navy",
+          "elements": [
+            "kicker",
+            "headline",
+            "body",
+            "trust_points",
+            "button",
+            "footer"
+          ],
+          "rule": "Identical on every carousel. It becomes recognizable."
+        }
+      }
+    }
+  },
+  "disclaimers": {
+    "compounded": "Compounded medications are prepared per individual prescription and are not reviewed by the U.S. Food and Drug Administration for safety or efficacy. These statements have not been evaluated by the FDA. Individual results vary. Treatment is determined at evaluation and is not guaranteed.",
+    "general": "Care is individualized and begins with diagnostic testing. Treatment is determined at evaluation and is not guaranteed. Precision Vitality serves patients located in California. This is not medical advice.",
+    "model": "Images are models, not patients."
+  },
+  "footer": {
+    "left": "precision-vitality.com",
+    "right": "Psychiatry · Cellular Medicine",
+    "contact": "(714) 485-4573 · Yorba Linda, CA"
+  }
+}

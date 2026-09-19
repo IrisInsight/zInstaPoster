@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/jobs/refresh-tokens",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/jobs/sweep",
+      "schedule": "0 * * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/jobs/publish/route.ts": { "maxDuration": 600 },
+    "src/app/api/generate/route.ts": { "maxDuration": 300 }
+  }
+}
