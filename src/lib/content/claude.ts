@@ -3,7 +3,11 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { rulesAsPromptGuidance } from "@/lib/compliance/engine";
 import { env } from "@/lib/env";
 import type { TenantConfig } from "@/lib/tenants";
-import { carouselSchemaFor, type GeneratedCarousel } from "./schema";
+import {
+  assertMatchesTemplate,
+  carouselSchemaFor,
+  type GeneratedCarousel,
+} from "./schema";
 
 let client: Anthropic | undefined;
 
@@ -141,7 +145,12 @@ export async function generateCarouselCopy(
         .join("; ")}`,
     );
   }
-  return parsed.data as GeneratedCarousel;
+
+  const carousel = parsed.data as GeneratedCarousel;
+  // The schema cannot pin slide order, so the template's shape is asserted here.
+  carousel.slides.sort((a, b) => a.position - b.position);
+  assertMatchesTemplate(carousel, template);
+  return carousel;
 }
 
 /**

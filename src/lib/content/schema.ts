@@ -54,29 +54,41 @@ export function isKnownSlideType(value: string): value is SlideTypeName {
   return value in SLIDE_SCHEMAS;
 }
 
-const slideEnvelope = z.object({
-  position: z.number().int(),
-  type: z.string(),
-  alt_text: z
-    .string()
-    .describe("Describes what is on the slide for a screen reader. Max 1000 characters."),
-});
-
 /**
- * Builds the output schema for one template. Every slide is emitted as a
- * position/type/alt_text envelope plus the copy fields for that slide type.
+ * Builds the output schema for one template.
+ *
+ * Slides are an array of a union of per-slide-type variants rather than a
+ * tuple: a Zod tuple serialises to `items: false`, which the structured-output
+ * schema validator rejects. The count and ordering are asserted after parsing
+ * instead — see assertMatchesTemplate.
  */
-export function carouselSchemaFor(template: TemplateDefinition) {
-  const slideSchemas = template.structure.map((type, index) => {
-    const copySchema = isKnownSlideType(type)
-      ? SLIDE_SCHEMAS[type]
-      : z.object({ headline: z.string() });
-    return slideEnvelope.extend({
-      position: z.literal(index + 1),
-      type: z.literal(type),
-      copy: copySchema,
-    });
+function slideVariant(type: string) {
+  const copySchema = isKnownSlideType(type)
+    ? SLIDE_SCHEMAS[type]
+    : z.object({ headline: z.string() });
+  return z.object({
+    position: z.number().int().describe("1-based position in the carousel."),
+    // A single-value enum rather than z.literal: a literal serialises to a
+    // bare `const`, which has no `type` and is rejected.
+    type: z.enum([type]).describe(`Always "${type}".`),
+    alt_text: z
+      .string()
+      .describe(
+        "Describes what is on the slide for a screen reader. Max 1000 characters.",
+      ),
+    copy: copySchema,
   });
+}
+
+export function carouselSchemaFor(template: TemplateDefinition) {
+  const types = [...new Set(template.structure)];
+  const variants = types.map(slideVariant);
+  const slideSchema =
+    variants.length === 1
+      ? variants[0]
+      : z.union(
+          variants as unknown as readonly [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]],
+        );
 
   return z.object({
     title: z.string().describe("Six words or fewer, for the queue list."),
@@ -89,10 +101,33 @@ export function carouselSchemaFor(template: TemplateDefinition) {
     caption: z
       .string()
       .describe("The Instagram caption. Under 2200 characters, at most 5 hashtags."),
-    slides: z.tuple(
-      slideSchemas as unknown as [z.ZodTypeAny, ...z.ZodTypeAny[]],
-    ),
+    slides: z
+      .array(slideSchema)
+      .describe(
+        `Exactly ${template.slides} slides, in this order: ${template.structure.join(", ")}.`,
+      ),
   });
+}
+
+/**
+ * The schema cannot express "these types, in this order", so the shape the
+ * template asked for is checked here after parsing.
+ */
+export function assertMatchesTemplate(
+  carousel: { slides: { position: number; type: string }[] },
+  template: TemplateDefinition,
+): void {
+  const got = carousel.slides.map((s) => s.type);
+  if (got.length !== template.slides) {
+    throw new Error(
+      `The model returned ${got.length} slides; template "${template.structure.join("/")}" needs ${template.slides}.`,
+    );
+  }
+  if (got.join(",") !== template.structure.join(",")) {
+    throw new Error(
+      `The model returned slides in the order ${got.join(", ")}; the template is ${template.structure.join(", ")}.`,
+    );
+  }
 }
 
 export type GeneratedCarousel = {
