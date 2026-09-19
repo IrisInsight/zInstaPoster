@@ -349,6 +349,77 @@ test("unscheduling a scheduled post returns it to approved, and only a human can
   assert.equal(after.approvedBy, human.label, "the approval itself survives");
 });
 
+test("regenerating the hook photo withdraws the approval and is refused when published", async () => {
+  const db = await getDb();
+  const { postId } = await approvedPost(4);
+  const rows = await db.select().from(slide).where(eq(slide.postId, postId));
+  const hook = rows.find((r) => r.photoPrompt) ?? rows[0];
+
+  // The generator is stubbed: what is under test is the guard and the
+  // withdrawal around it, not the image model.
+  let approvalAtGenerationTime: string | null = "not reached";
+  await service.regenerateSlidePhoto({
+    postId,
+    slideId: hook.id,
+    prompt: "a completely different photo",
+    actor: human,
+    generate: async () => {
+      approvalAtGenerationTime = (await statusOf(postId)).approvedBy;
+      return "https://blob.example.com/new-photo.jpg";
+    },
+  });
+
+  assert.equal(
+    approvalAtGenerationTime,
+    null,
+    "the approval is withdrawn before the new photo is generated, not after",
+  );
+  const after = await statusOf(postId);
+  assert.equal(after.approvedBy, null, "the approval must not survive a new cover photo");
+  assert.equal(after.status, "pending_approval");
+
+  await db
+    .update(post)
+    .set({ status: "published", publishedMediaId: "m-1" })
+    .where(eq(post.id, postId));
+  await assert.rejects(
+    () =>
+      service.regenerateSlidePhoto({
+        postId,
+        slideId: hook.id,
+        prompt: "another one",
+        actor: human,
+        generate: async () => {
+          throw new Error("the generator must never run on a published post");
+        },
+      }),
+    /cannot be edited/,
+  );
+});
+
+test("a failed delete does not destroy the slide on the way out", async () => {
+  const db = await getDb();
+  const { postId } = await approvedPost(0);
+  const before = await db.select().from(slide).where(eq(slide.postId, postId));
+  await db
+    .update(post)
+    .set({ status: "published", publishedMediaId: "m-2" })
+    .where(eq(post.id, postId));
+
+  await assert.rejects(
+    () => service.deleteSlide({ postId, slideId: before[1].id, actor: human }),
+    /cannot be edited/,
+  );
+
+  const after = await db.select().from(slide).where(eq(slide.postId, postId));
+  assert.equal(after.length, before.length, "the slide is still there");
+  assert.deepEqual(
+    after.map((s) => s.position).sort((a, b) => a - b),
+    [1, 2, 3, 4],
+    "and the positions have no gap",
+  );
+});
+
 test("a published post cannot be edited at all", async () => {
   const db = await getDb();
   const { postId } = await approvedPost(0);

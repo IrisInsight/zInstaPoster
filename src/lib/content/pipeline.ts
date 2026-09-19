@@ -275,7 +275,7 @@ export async function generateSlidePhoto(input: {
   await db
     .update(slide)
     .set({ photoUrl: stored.url, photoPrompt: input.prompt })
-    .where(eq(slide.id, input.slideId));
+    .where(and(eq(slide.id, input.slideId), eq(slide.postId, input.postId)));
 
   return stored.url;
 }

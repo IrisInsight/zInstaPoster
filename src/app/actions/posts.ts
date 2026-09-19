@@ -8,6 +8,7 @@ import {
   loadPost,
   photoHistory,
   recomputeCompliance,
+  regenerateSlidePhoto,
   rejectPost,
   reorderSlides,
   schedulePost,
@@ -17,7 +18,7 @@ import {
   updateCaption,
   updateSlideCopy,
 } from "@/lib/posts/service";
-import { generateSlidePhoto, renderPost } from "@/lib/content/pipeline";
+import { renderPost } from "@/lib/content/pipeline";
 import { publishPostById } from "@/lib/instagram/publish";
 import { getDb, igAccount as igAccountTable, post as postTable } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
@@ -94,22 +95,19 @@ export async function regeneratePhotoAction(input: {
   prompt: string;
 }): Promise<ActionResult> {
   try {
-    const { user, tenant, slides } = await withPost(input.postId);
-    const target = slides.find((s) => s.id === input.slideId);
-    if (!target) throw new Error("That slide no longer exists.");
-
-    await generateSlidePhoto({
-      tenant,
-      postId: input.postId,
-      slideId: input.slideId,
-      position: target.position,
-      prompt: input.prompt,
+    const { user } = await withPost(input.postId);
+    const { approvalWithdrawn } = await regenerateSlidePhoto({
+      ...input,
+      actor: actorFor(user),
     });
-    await renderPost({ tenant, postId: input.postId, position: target.position });
     await recomputeCompliance(input.postId);
-    void user;
     refresh(input.postId);
-    return { ok: true, message: "New photo generated." };
+    return {
+      ok: true,
+      message: approvalWithdrawn
+        ? "New photo generated. The approval was withdrawn — someone has to look again."
+        : "New photo generated.",
+    };
   } catch (error) {
     return fail(error);
   }

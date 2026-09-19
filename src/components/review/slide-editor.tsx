@@ -179,7 +179,7 @@ export function SlideEditor({
                       key={option.id}
                       type="button"
                       title={option.prompt}
-                      disabled={!editable || pending}
+                      disabled={!editable || pending || option.selected}
                       onClick={() =>
                         startTransition(async () => {
                           const result = await selectPhotoAction({
