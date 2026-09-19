@@ -17,6 +17,15 @@ type Database = Awaited<ReturnType<typeof create>>;
 let closer: (() => Promise<void>) | undefined;
 
 async function create() {
+  // PGlite writes to a directory on disk, which does not exist on a serverless
+  // filesystem. Falling back to it in production turns a missing setting into
+  // an unreadable runtime error, so say what is actually wrong instead.
+  if (env.isProduction && !env.databaseUrl) {
+    throw new Error(
+      "DATABASE_URL is not set. The embedded database is for local development only; a deployment needs a Postgres connection string.",
+    );
+  }
+
   if (env.databaseUrl) {
     const [{ drizzle }, postgres] = await Promise.all([
       import("drizzle-orm/postgres-js"),

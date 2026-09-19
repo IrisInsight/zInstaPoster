@@ -15,6 +15,10 @@ export async function signInAction(
     if (!user) return { error: "That access code is not right." };
   } catch (error) {
     if (error instanceof AccessDenied) return { error: error.message };
+    // A misconfigured deployment should say so on the screen rather than
+    // showing an error page that looks like a wrong code.
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("DATABASE_URL")) return { error: message };
     throw error;
   }
   redirect("/");
