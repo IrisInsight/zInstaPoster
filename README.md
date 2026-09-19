@@ -83,11 +83,19 @@ every transition. Three of them matter:
 - `pending_approval → approved` is human-only. There is no service-account path,
   no API key path, no admin override.
 - Nothing reaches `publishing` unless `approved_by` is already recorded on the
-  row, checked again inside the publish call itself.
-- Editing an approved post withdraws the approval and cancels its schedule.
+  row, checked again inside the publish call itself, and the move into
+  `publishing` is a conditional claim so two jobs cannot both take it.
+- **Any edit to what would be published withdraws the approval**, whatever state
+  the post is in. That is keyed on the approval, not on a list of statuses: a
+  failed post still carries the approver who signed off on the content that
+  failed, and editing one before pressing Retry would otherwise publish text
+  nobody read. Caption, slide copy, slide order, slide deletion and the hook
+  photo all go through the same withdrawal.
+- A published post cannot be edited, unscheduled or published again.
 
-Every transition writes to `audit_log` with the actor. For a medical tenant that
-table is the record of who signed off on what.
+Every transition writes to `audit_log` with the actor, including the withdrawal
+and who caused it. For a medical tenant that table is the record of who signed
+off on what.
 
 ### The compliance engine
 
