@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/posts";
 import type { ComplianceReport } from "@/lib/compliance/types";
 import type { PostStatus } from "@/lib/db/schema";
+import { isEditable } from "@/lib/posts/state-machine";
 import { StatusPill } from "@/components/status-pill";
 import { CarouselPane } from "./carousel-pane";
 import { CaptionEditor } from "./caption-editor";
@@ -55,7 +56,7 @@ export function ReviewScreen({
   const blocking = report?.findings.filter((f) => f.severity === "blocking") ?? [];
   const approvable = (report?.approvable ?? false) && blocking.length === 0;
   const status = post.status as PostStatus;
-  const editable = status !== "published" && status !== "publishing";
+  const editable = isEditable(status);
   const approved = Boolean(post.approvedBy);
 
   function announce(message: string) {

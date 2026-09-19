@@ -84,8 +84,13 @@ export function label(status: PostStatus): string {
 
 export const TERMINAL: PostStatus[] = ["published"];
 
+/**
+ * Whether a post's content can still be changed. A failed post is editable —
+ * that is how a rejected publish gets fixed — and the edit withdraws its
+ * approval. A published post is a record, and a publishing one is in flight.
+ */
 export function isEditable(status: PostStatus): boolean {
-  return ["draft", "pending_approval", "rejected"].includes(status);
+  return status !== "published" && status !== "publishing";
 }
 
 /**

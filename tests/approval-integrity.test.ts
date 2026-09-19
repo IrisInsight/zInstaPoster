@@ -359,7 +359,14 @@ test("a published post cannot be edited at all", async () => {
 
   await assert.rejects(
     () => service.updateCaption({ postId, caption: "rewriting history", actor: human }),
-    /published post cannot be edited/,
+    /cannot be edited/,
+  );
+
+  // The same guard covers a publish already in flight.
+  await db.update(post).set({ status: "publishing" }).where(eq(post.id, postId));
+  await assert.rejects(
+    () => service.updateCaption({ postId, caption: "mid-flight edit", actor: human }),
+    /cannot be edited/,
   );
 });
 

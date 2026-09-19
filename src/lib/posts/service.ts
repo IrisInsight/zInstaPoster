@@ -19,6 +19,7 @@ import { tenantConfigFromRow, type TenantConfig } from "@/lib/tenants";
 import {
   assertTransition,
   editInvalidatesApproval,
+  isEditable,
   TransitionError,
   type Actor,
 } from "./state-machine";
@@ -292,8 +293,10 @@ export async function updateCaption(input: {
   const db = await getDb();
   const [current] = await db.select().from(post).where(eq(post.id, input.postId));
   if (!current) throw new Error(`No post ${input.postId}.`);
-  if (current.status === "published") {
-    throw new TransitionError("A published post cannot be edited.");
+  if (!isEditable(current.status as PostStatus)) {
+    throw new TransitionError(
+      `A post that is ${current.status.replace("_", " ")} cannot be edited.`,
+    );
   }
 
   await db
@@ -325,8 +328,10 @@ export async function updateSlideCopy(input: {
   const db = await getDb();
   const [current] = await db.select().from(post).where(eq(post.id, input.postId));
   if (!current) throw new Error(`No post ${input.postId}.`);
-  if (current.status === "published") {
-    throw new TransitionError("A published post cannot be edited.");
+  if (!isEditable(current.status as PostStatus)) {
+    throw new TransitionError(
+      `A post that is ${current.status.replace("_", " ")} cannot be edited.`,
+    );
   }
 
   const updated = await db
@@ -363,8 +368,10 @@ export async function reorderSlides(input: {
   const db = await getDb();
   const [current] = await db.select().from(post).where(eq(post.id, input.postId));
   if (!current) throw new Error(`No post ${input.postId}.`);
-  if (current.status === "published") {
-    throw new TransitionError("A published post cannot be reordered.");
+  if (!isEditable(current.status as PostStatus)) {
+    throw new TransitionError(
+      `A post that is ${current.status.replace("_", " ")} cannot be reordered.`,
+    );
   }
 
   const rows = await db.select().from(slide).where(eq(slide.postId, input.postId));
@@ -476,8 +483,10 @@ export async function selectPhoto(input: {
   const db = await getDb();
   const [current] = await db.select().from(post).where(eq(post.id, input.postId));
   if (!current) throw new Error(`No post ${input.postId}.`);
-  if (current.status === "published") {
-    throw new TransitionError("A published post cannot be edited.");
+  if (!isEditable(current.status as PostStatus)) {
+    throw new TransitionError(
+      `A post that is ${current.status.replace("_", " ")} cannot be edited.`,
+    );
   }
 
   const [target] = await db
