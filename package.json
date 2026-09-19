@@ -23,6 +23,7 @@
     "@anthropic-ai/sdk": "^0.127.0",
     "@electric-sql/pglite": "^0.3.11",
     "@google/genai": "^2.23.0",
+    "@sparticuz/chromium": "^153.0.0",
     "@upstash/qstash": "^2.8.6",
     "@vercel/blob": "^2.0.0",
     "drizzle-orm": "^0.45.0",
@@ -34,7 +35,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@sparticuz/chromium": "^153.0.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24.10.1",
     "@types/react": "^19.3.0",
