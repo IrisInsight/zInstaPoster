@@ -17,7 +17,7 @@
 import { closeDb } from "@/lib/db";
 import { env } from "@/lib/env";
 import { migrateToLatest } from "@/lib/db/migrate";
-import { seedDatabase } from "@/lib/seed";
+import { renderMissing, seedDatabase } from "@/lib/seed";
 
 /**
  * Preview deployments share the production DATABASE_URL, so migrating from
@@ -78,13 +78,27 @@ async function main() {
       `${seeded.pendingApproval} awaiting approval`,
   );
 
-  if (seeded.renderErrors.length > 0) {
-    console.error(
-      `\nbootstrap  ${seeded.renderErrors.length} carousel(s) could not be rendered. ` +
-        "The posts exist but have no slide images, so they stay in draft:",
+  // Seeding skips a tenant that already has posts, so anything a previous
+  // deploy failed to render is repaired here rather than staying blank.
+  const repaired = await renderMissing({ log: (line) => console.log(`           ${line}`) });
+  if (repaired.postsRendered > 0 || repaired.errors.length > 0) {
+    console.log(
+      `bootstrap  rendered  ${repaired.postsRendered} post(s) that had no images, ` +
+        `${repaired.pendingApproval} moved to awaiting approval, ${repaired.errors.length} failed`,
     );
-    for (const failure of seeded.renderErrors) {
-      console.error(`           ${failure.slug}: ${failure.error}`);
+  }
+
+  const renderErrors = [
+    ...seeded.renderErrors.map((f) => `${f.slug}: ${f.error}`),
+    ...repaired.errors.map((f) => `${f.postId}: ${f.error}`),
+  ];
+  if (renderErrors.length > 0) {
+    console.error(
+      `\nbootstrap  ${renderErrors.length} post(s) could not be rendered. ` +
+        "They exist but have no slide images, so they stay in draft:",
+    );
+    for (const failure of renderErrors) {
+      console.error(`           ${failure}`);
     }
     console.error("");
   }

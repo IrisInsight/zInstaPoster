@@ -11,7 +11,7 @@
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { eq, inArray, isNull } from "drizzle-orm";
 import { appUser, getDb, post, slide, tenant, userTenant } from "@/lib/db";
 import { readTenantFiles, splitTenantConfig, tenantConfigFromRow } from "@/lib/tenants";
 import { recordAudit, systemActor } from "@/lib/audit";
@@ -39,6 +39,84 @@ export interface SeedResult {
   pendingApproval: number;
   /** Render failures, by carousel slug. Empty when every render succeeded. */
   renderErrors: { slug: string; error: string }[];
+}
+
+export interface RenderMissingResult {
+  postsRendered: number;
+  pendingApproval: number;
+  errors: { postId: string; error: string }[];
+}
+
+/**
+ * Renders posts whose slides never got images.
+ *
+ * Seeding skips a tenant that already has posts, so a run where rendering
+ * failed would otherwise leave the queue permanently empty of pictures: the
+ * rows are there, which is exactly what stops the seed from trying again.
+ * This is the repair path, and it is what makes re-running the bootstrap
+ * fill in what a previous one could not.
+ */
+export async function renderMissing(options: SeedOptions = {}): Promise<RenderMissingResult> {
+  const log = options.log ?? (() => {});
+  const result: RenderMissingResult = { postsRendered: 0, pendingApproval: 0, errors: [] };
+
+  const db = await getDb();
+  const unrendered = await db
+    .select({ postId: slide.postId })
+    .from(slide)
+    .where(isNull(slide.renderedUrl));
+  const postIds = [...new Set(unrendered.map((row) => row.postId))];
+  if (postIds.length === 0) return result;
+
+  // Only content still awaiting a decision. A published post is immutable and
+  // a rejected one should not quietly come back with fresh images.
+  const targets = await db
+    .select()
+    .from(post)
+    .where(inArray(post.id, postIds));
+
+  for (const row of targets) {
+    if (row.status !== "draft" && row.status !== "pending_approval") continue;
+
+    const [owner] = await db.select().from(tenant).where(eq(tenant.id, row.tenantId));
+    if (!owner) continue;
+
+    try {
+      const config = tenantConfigFromRow(owner);
+      const slides = await db.select().from(slide).where(eq(slide.postId, row.id));
+      await fillPhotos({ tenant: config, postId: row.id, slides });
+      await renderPost({ tenant: config, postId: row.id });
+      const report = await runCompliance({ tenant: config, postId: row.id });
+      result.postsRendered += 1;
+
+      if (row.status === "draft" && report.approvable) {
+        await db
+          .update(post)
+          .set({ status: "pending_approval", updatedAt: new Date() })
+          .where(eq(post.id, row.id));
+        await recordAudit({
+          tenantId: row.tenantId,
+          postId: row.id,
+          actor: systemActor("seed"),
+          action: "post.pending_approval",
+          payload: { from: "draft", to: "pending_approval", checksPassed: report.passed },
+        });
+        result.pendingApproval += 1;
+      }
+      log(
+        `render  filled   ${row.title}  ${report.passed}/${report.checksRun} checks passed, ${
+          report.approvable ? "awaiting approval" : "blocked"
+        }`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      result.errors.push({ postId: row.id, error: message });
+      log(`render  FAILED   ${row.title}  ${message}`);
+    }
+  }
+
+  await closeBrowser();
+  return result;
 }
 
 export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResult> {

@@ -64,6 +64,42 @@ async function checkMedia(url: string, expected: { width: number; height: number
   }
 }
 
+/**
+ * Is this deployment reachable by something that is not signed in?
+ *
+ * Vercel Authentication sits in front of a *.vercel.app deployment, ahead of
+ * any route, so `/api/media/…` can be perfectly unauthenticated in this
+ * codebase and still answer 401 to Instagram. The app cannot see that from a
+ * browser session that is already past the wall, so it asks from outside: a
+ * plain fetch of its own public login page, no cookies, no headers.
+ */
+async function checkPublicAccess(): Promise<{
+  url: string;
+  status?: number;
+  blocked: boolean;
+  note?: string;
+}> {
+  const url = `${env.appBaseUrl}/login`;
+  try {
+    const response = await fetch(url, { cache: "no-store", redirect: "manual" });
+    const blocked = response.status === 401 || response.status === 403;
+    return {
+      url,
+      status: response.status,
+      blocked,
+      note: blocked
+        ? "Deployment protection is answering instead of the app. Instagram cannot fetch slide images, so every publish will fail. Turn off Vercel Authentication, or serve the app from a custom domain."
+        : undefined,
+    };
+  } catch (error) {
+    return {
+      url,
+      blocked: true,
+      note: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function GET(request: Request): Promise<Response> {
   const requested = Number(new URL(request.url).searchParams.get("slides"));
   const limit = Number.isFinite(requested) && requested > 0 ? Math.min(requested, 20) : 4;
@@ -75,6 +111,8 @@ export async function GET(request: Request): Promise<Response> {
     storageDriver: storageDriver(),
     databaseConfigured: Boolean(env.databaseUrl),
   };
+
+  const publicAccess = await checkPublicAccess();
 
   try {
     const db = await getDb();
@@ -105,8 +143,9 @@ export async function GET(request: Request): Promise<Response> {
 
     return Response.json(
       {
-        ok: rendered.n > 0 && mediaOk,
+        ok: rendered.n > 0 && mediaOk && !publicAccess.blocked,
         deployment,
+        publicAccess,
         database: {
           reachable: true,
           tenants: tenants.n,
@@ -124,6 +163,7 @@ export async function GET(request: Request): Promise<Response> {
       {
         ok: false,
         deployment,
+        publicAccess,
         database: {
           reachable: false,
           error: error instanceof Error ? error.message : String(error),
