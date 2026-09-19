@@ -80,6 +80,7 @@ export default async function ReviewPage({
       }))}
       photoGenerations={generations.map((g) => ({
         id: g.id,
+        slideId: g.slideId,
         url: g.url,
         prompt: g.prompt,
         provider: g.provider,

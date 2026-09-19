@@ -1,6 +1,7 @@
 import { actorFor, assertTenantAccess, currentUser } from "@/lib/auth";
 import { getTenantContext } from "@/lib/tenant-context";
 import { generatePost, type PipelineEvent } from "@/lib/content/pipeline";
+import { inferTemplate } from "@/lib/content/claude";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -27,10 +28,12 @@ export async function POST(request: Request): Promise<Response> {
   const prompt = (body.prompt ?? "").trim();
   if (!prompt) return new Response("A prompt is required.", { status: 400 });
 
+  // An explicit pick from the compose screen wins; otherwise the model infers
+  // it from the prompt, and falls back to the tenant's primary template.
   const templateName =
     body.template && context.config.templates?.[body.template]
       ? body.template
-      : Object.keys(context.config.templates ?? {})[0];
+      : (await inferTemplate({ tenant: context.config, prompt })).template;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({

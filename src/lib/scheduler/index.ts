@@ -15,6 +15,13 @@ import { env } from "@/lib/env";
 
 export type SchedulerDriver = "qstash" | "local";
 
+/**
+ * How long a post may sit in `publishing` before the sweep calls it failed.
+ * The publish flow polls the container for up to five minutes, so this has to
+ * be comfortably longer than that.
+ */
+export const STUCK_PUBLISHING_MS = 20 * 60 * 1000;
+
 export function schedulerDriver(): SchedulerDriver {
   return env.qstashToken ? "qstash" : "local";
 }
@@ -100,17 +107,33 @@ async function runLocalPublish(postId: string): Promise<void> {
 export async function sweepDuePosts(now = new Date()): Promise<
   { postId: string; status: string; error?: string }[]
 > {
-  const { and, eq, lte } = await import("drizzle-orm");
+  const { and, eq, lt, lte } = await import("drizzle-orm");
   const { getDb, post } = await import("@/lib/db");
   const { publishPostById } = await import("@/lib/instagram/publish");
 
   const db = await getDb();
+
+  // A post whose publish job died mid-flight would otherwise sit in
+  // `publishing` forever, invisible to both the scheduler and the operator.
+  const stuckSince = new Date(now.getTime() - STUCK_PUBLISHING_MS);
+  const stuck = await db
+    .update(post)
+    .set({
+      status: "failed",
+      failureReason:
+        "The publish job stopped before it finished. Nothing was confirmed published — check the account before retrying.",
+      updatedAt: now,
+    })
+    .where(and(eq(post.status, "publishing"), lt(post.updatedAt, stuckSince)))
+    .returning();
   const due = await db
     .select()
     .from(post)
     .where(and(eq(post.status, "scheduled"), lte(post.scheduledFor, now)));
 
-  const results: { postId: string; status: string; error?: string }[] = [];
+  const results: { postId: string; status: string; error?: string }[] = stuck.map(
+    (row) => ({ postId: row.id, status: "stuck-marked-failed" }),
+  );
   for (const row of due) {
     try {
       const outcome = await publishPostById({

@@ -233,10 +233,17 @@ export async function generateSlidePhoto(input: {
   slideId: string;
   position: number;
   prompt: string;
+  /** The post's template, so the photo is cropped to that template's slot. */
+  templateName?: string;
 }): Promise<string> {
   const db = await getDb();
-  const slot = input.tenant.templates?.[Object.keys(input.tenant.templates)[0]]
-    ?.slide_specs?.hook?.photo_slot ?? { w: 1080, h: 560, x: 0, y: 0 };
+  const [current] = await db.select().from(post).where(eq(post.id, input.postId));
+  const templateName =
+    input.templateName ??
+    current?.template ??
+    Object.keys(input.tenant.templates ?? {})[0];
+  const slot = input.tenant.templates?.[templateName]?.slide_specs?.hook
+    ?.photo_slot ?? { w: 1080, h: 560, x: 0, y: 0 };
 
   const photo = await generatePhoto({ prompt: input.prompt });
   const jpeg =

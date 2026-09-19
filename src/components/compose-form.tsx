@@ -31,7 +31,11 @@ export function ComposeForm({
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [showOptions, setShowOptions] = useState(false);
-  const [template, setTemplate] = useState(templates[0] ?? "symptom_carousel");
+  // Empty means "let the model infer it". With one template there is
+  // nothing to infer, so it is preselected.
+  const [template, setTemplate] = useState(
+    templates.length === 1 ? templates[0] : "",
+  );
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [reference, setReference] = useState("");
   const [running, setRunning] = useState(false);
@@ -62,7 +66,7 @@ export function ComposeForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           prompt,
-          template,
+          template: template || null,
           igAccountId: accountId || null,
           reference: reference || null,
         }),
@@ -204,6 +208,9 @@ export function ComposeForm({
               onChange={(e) => setTemplate(e.target.value)}
               className="mt-1 w-full rounded-md border border-[var(--color-line)] px-2 py-1.5 text-[13.5px] text-[var(--color-ink)]"
             >
+              {templates.length > 1 && (
+                <option value="">Infer from the prompt</option>
+              )}
               {templates.map((t) => (
                 <option key={t} value={t}>
                   {t.replace(/_/g, " ")}

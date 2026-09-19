@@ -42,11 +42,14 @@ mid-write leaves the directory locked, and `npm run db:reset` clears it.
 npm test                 # compliance, renderer, publish, tokens, scheduling, multi-tenant
 npm run render:smoke     # renders a carousel, checks JPEG/size/dimensions
 npm run pipeline:smoke   # whole pipeline, then fetches each slide URL back
+npm run ui:smoke         # walks every screen against a running dev server
 ```
 
 `render:smoke` and `pipeline:smoke` write real files and hit the real renderer.
 `pipeline:smoke` re-fetches every stored slide URL over HTTP and fails if the
-bytes are not a valid JPEG at the tenant's exact dimensions.
+bytes are not a valid JPEG at the tenant's exact dimensions. `ui:smoke` needs a
+server already running and fails on an uncaught page error, a 4xx/5xx, or a
+screen that renders without its content.
 
 ---
 

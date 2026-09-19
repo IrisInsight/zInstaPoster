@@ -26,6 +26,7 @@ export interface ReviewSlide {
 
 export interface PhotoOption {
   id: string;
+  slideId: string;
   url: string;
   prompt: string;
   provider: string;

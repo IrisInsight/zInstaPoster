@@ -132,9 +132,9 @@ export function ReviewScreen({
               postId={post.id}
               slides={slides}
               slide={selected}
-              photoOptions={
-                selected.photoPrompt !== null ? photoGenerations : []
-              }
+              photoOptions={photoGenerations.filter(
+                (option) => option.slideId === selected.id,
+              )}
               photoAvailable={photoAvailable}
               editable={editable}
               onSelect={setSelectedId}

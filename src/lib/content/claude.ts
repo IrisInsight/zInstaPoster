@@ -72,6 +72,64 @@ function systemPrompt(tenant: TenantConfig, templateName: string): string {
     .join("\n");
 }
 
+/**
+ * Picks a template from the prompt when the tenant has more than one.
+ *
+ * The picker in the compose screen is an override, not a required step: with a
+ * single template this never calls the API, and if the call fails the tenant's
+ * primary template is used rather than blocking the generation.
+ */
+export async function inferTemplate(input: {
+  tenant: TenantConfig;
+  prompt: string;
+}): Promise<{ template: string; inferred: boolean }> {
+  const names = Object.keys(input.tenant.templates ?? {});
+  if (names.length === 0) throw new Error(`Tenant ${input.tenant.slug} has no templates.`);
+  if (names.length === 1 || !copyGenerationAvailable()) {
+    return { template: names[0], inferred: false };
+  }
+
+  const described = names
+    .map((name) => {
+      const template = input.tenant.templates[name];
+      const rules = Object.values(template.slide_specs)
+        .map((spec) => spec.rule)
+        .filter(Boolean)
+        .join(" ");
+      return `- ${name}: ${template.structure.join(" → ")}. ${rules}`;
+    })
+    .join("\n");
+
+  try {
+    const message = await anthropic().messages.create({
+      model: env.anthropicModel,
+      max_tokens: 1000,
+      system: [
+        {
+          type: "text",
+          text: [
+            "Pick the template that best fits a post request.",
+            "Answer with the template name alone. No punctuation, no explanation.",
+            "Templates:",
+            described,
+          ].join("\n"),
+        },
+      ],
+      messages: [{ role: "user", content: input.prompt }],
+    });
+    const answer = message.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim()
+      .toLowerCase();
+    const match = names.find((name) => answer.includes(name.toLowerCase()));
+    return match ? { template: match, inferred: true } : { template: names[0], inferred: false };
+  } catch {
+    return { template: names[0], inferred: false };
+  }
+}
+
 export interface GenerateCopyOptions {
   tenant: TenantConfig;
   templateName: string;
