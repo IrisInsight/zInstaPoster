@@ -19,8 +19,8 @@ import {
 } from "@/lib/posts/service";
 import { generateSlidePhoto, renderPost } from "@/lib/content/pipeline";
 import { publishPostById } from "@/lib/instagram/publish";
-import { getDb, post as postTable } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { getDb, igAccount as igAccountTable, post as postTable } from "@/lib/db";
+import { and, eq } from "drizzle-orm";
 import { fromLocalInputValue } from "@/lib/time";
 
 export interface ActionResult {
@@ -133,9 +133,10 @@ export async function selectPhotoAction(input: {
   }
 }
 
-export async function photoHistoryAction(slideId: string) {
-  await requireUser();
-  const rows = await photoHistory(slideId);
+/** Scoped to a post the caller can reach: generation prompts are tenant content. */
+export async function photoHistoryAction(postId: string, slideId: string) {
+  await withPost(postId);
+  const rows = await photoHistory({ postId, slideId });
   return rows.map((row) => ({
     id: row.id,
     url: row.url,
@@ -288,8 +289,22 @@ export async function assignAccountAction(
   igAccountId: string | null,
 ): Promise<ActionResult> {
   try {
-    await withPost(postId);
+    const { tenantId } = await withPost(postId);
     const db = await getDb();
+    if (igAccountId) {
+      // The dropdown is tenant-scoped, but this is an HTTP endpoint and the id
+      // is whatever the caller sends. Publishing to another tenant's account
+      // would decrypt their token and spend their daily quota.
+      const [account] = await db
+        .select()
+        .from(igAccountTable)
+        .where(
+          and(eq(igAccountTable.id, igAccountId), eq(igAccountTable.tenantId, tenantId)),
+        );
+      if (!account) {
+        return { ok: false, error: "That account does not belong to this tenant." };
+      }
+    }
     await db
       .update(postTable)
       .set({ igAccountId, updatedAt: new Date() })

@@ -25,7 +25,9 @@ export const TRANSITIONS: Record<PostStatus, TransitionRule> = {
   draft: { from: ["draft", "pending_approval", "rejected"] },
   pending_approval: { from: ["draft", "rejected"], requiresClean: true },
   approved: {
-    from: ["pending_approval"],
+    // `scheduled` is here so a human can clear a schedule without re-approving;
+    // the approval itself is unchanged by that.
+    from: ["pending_approval", "scheduled"],
     humanOnly: true,
     requiresClean: true,
   },
@@ -86,7 +88,17 @@ export function isEditable(status: PostStatus): boolean {
   return ["draft", "pending_approval", "rejected"].includes(status);
 }
 
-/** After an approval, any content edit sends the post back for re-approval. */
-export function editInvalidatesApproval(status: PostStatus): boolean {
-  return ["approved", "scheduled"].includes(status);
+/**
+ * After an approval, any content edit sends the post back for re-approval.
+ *
+ * This is keyed on the approval itself rather than on a list of statuses: a
+ * `failed` post still carries the approver who signed off on the content that
+ * failed, and retrying it after an edit would publish something nobody read.
+ */
+export function editInvalidatesApproval(post: {
+  status: PostStatus;
+  approvedBy?: string | null;
+}): boolean {
+  if (post.status === "published") return false;
+  return Boolean(post.approvedBy);
 }

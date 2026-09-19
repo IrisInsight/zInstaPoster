@@ -45,6 +45,19 @@ function num(
 }
 
 /**
+ * Regex flags for a rule's own patterns. Most rules want case-insensitive
+ * matching, but some depend on case — a comment-keyword CTA is only a keyword
+ * because it is uppercase — so the rule decides.
+ */
+function flags(
+  params: Record<string, unknown> | undefined,
+  fallback: string,
+): string {
+  const value = params?.flags;
+  return typeof value === "string" ? value : fallback;
+}
+
+/**
  * Suppression window. A rule can carry `except_patterns`: when the text around
  * a hit matches one of them, the hit is dropped. This is what keeps
  * "Treatment ... is not guaranteed" — mandated disclaimer language — from
@@ -156,8 +169,9 @@ const patternMatch: Predicate = (ctx) => {
   const includePhotoPrompts = ctx.rule.params?.include_photo_prompts === true;
   const findings: Finding[] = [];
   for (const region of regions(ctx, { includePhotoPrompts })) {
+    const patternFlags = flags(ctx.rule.params, "gi");
     for (const source of patterns) {
-      const re = new RegExp(source, "gi");
+      const re = new RegExp(source, patternFlags.includes("g") ? patternFlags : `${patternFlags}g`);
       let match: RegExpExecArray | null;
       while ((match = re.exec(region.text))) {
         if (
@@ -299,8 +313,9 @@ const maxHashtags: Predicate = (ctx) => {
 /** Caption must contain at least one of `patterns`. Used for CTA elements. */
 const requiresOneOf: Predicate = (ctx) => {
   const patterns = strings(ctx.rule.params, "patterns");
+  const patternFlags = flags(ctx.rule.params, "i");
   const present = patterns.some((p) =>
-    new RegExp(p, "i").test(ctx.subject.caption),
+    new RegExp(p, patternFlags).test(ctx.subject.caption),
   );
   if (present) return [];
   return [
@@ -333,7 +348,17 @@ const conditionalDisclaimer: Predicate = (ctx) => {
   if (!triggered) return [];
 
   const slides = ctx.subject.slides.filter((s) => s.type === slideType);
-  if (slides.length === 0) return [];
+  if (slides.length === 0) {
+    // The trigger fired and there is nowhere for the disclaimer to appear.
+    // Passing here would mean deleting the slide removes the requirement.
+    return [
+      finding(
+        ctx,
+        { field: "post", label: "Post" },
+        `A ${triggers.length === 1 ? triggers[0] : "restricted"} product is named but this post has no ${slideType} slide to carry the required disclaimer.`,
+      ),
+    ];
+  }
   const carries = slides.some((s) =>
     normalise(s.text.join(" ")).includes(normalise(text)),
   );

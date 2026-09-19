@@ -55,9 +55,7 @@ export function ReviewScreen({
   const blocking = report?.findings.filter((f) => f.severity === "blocking") ?? [];
   const approvable = (report?.approvable ?? false) && blocking.length === 0;
   const status = post.status as PostStatus;
-  const editable = ["draft", "pending_approval", "rejected", "approved", "scheduled"].includes(
-    status,
-  );
+  const editable = status !== "published" && status !== "publishing";
   const approved = Boolean(post.approvedBy);
 
   function announce(message: string) {
@@ -123,6 +121,7 @@ export function ReviewScreen({
             key={post.caption}
             postId={post.id}
             initial={post.caption}
+            editable={editable}
             onSaved={announce}
           />
 
@@ -188,7 +187,7 @@ export function ReviewScreen({
             ) : (
               <p className="truncate text-[12px] text-[var(--color-faint)]">
                 {approved
-                  ? "Approved. Publishing is a separate, deliberate action."
+                  ? "Approved. Any edit withdraws this approval. Publishing is a separate, deliberate action."
                   : blocking.length > 0
                     ? `${blocking.length} blocking ${blocking.length === 1 ? "error" : "errors"} to resolve before approval.`
                     : "Nothing publishes until a person approves it."}
@@ -241,7 +240,7 @@ export function ReviewScreen({
             </button>
           )}
 
-          {approved && (
+          {approved && status !== "published" && (
             <>
               <SchedulePopover
                 postId={post.id}

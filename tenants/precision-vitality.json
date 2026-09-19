@@ -274,8 +274,9 @@
         "fix": "Add a line like “Comment PANEL and I will send you …”.",
         "params": {
           "patterns": [
-            "\\bcomment\\s+[A-Z]{3,}\\b"
-          ]
+            "\\b[Cc]omment\\s+[A-Z]{2,}[A-Z0-9]*\\b"
+          ],
+          "flags": ""
         }
       },
       {

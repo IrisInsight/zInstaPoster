@@ -122,6 +122,56 @@ async function transition(input: {
   return updated;
 }
 
+/**
+ * Any change to what would be published withdraws the approval and cancels the
+ * schedule. Called by every mutator that touches content — caption, slide copy,
+ * slide order, slide deletion and the hook photo — so that "approved" always
+ * refers to the bytes that are actually on the post.
+ */
+async function withdrawApprovalIfContentChanged(input: {
+  postId: string;
+  actor: Actor;
+  reason: string;
+}): Promise<boolean> {
+  const db = await getDb();
+  const [current] = await db.select().from(post).where(eq(post.id, input.postId));
+  if (!current) throw new Error(`No post ${input.postId}.`);
+  if (
+    !editInvalidatesApproval({
+      status: current.status as PostStatus,
+      approvedBy: current.approvedBy,
+    })
+  ) {
+    return false;
+  }
+
+  if (current.scheduleJobId) await cancelScheduledJob(current.scheduleJobId);
+  await db
+    .update(post)
+    .set({
+      status: "pending_approval",
+      approvedBy: null,
+      approvedAt: null,
+      scheduledFor: null,
+      scheduleJobId: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(post.id, input.postId));
+
+  await recordAudit({
+    tenantId: current.tenantId,
+    postId: input.postId,
+    actor: input.actor,
+    action: "post.approval_withdrawn",
+    payload: {
+      reason: input.reason,
+      previousStatus: current.status,
+      previousApprover: current.approvedBy,
+    },
+  });
+  return true;
+}
+
 export async function submitForApproval(input: {
   postId: string;
   actor: Actor;
@@ -215,24 +265,23 @@ export async function unschedulePost(input: {
 }): Promise<Post> {
   const db = await getDb();
   const [current] = await db.select().from(post).where(eq(post.id, input.postId));
-  if (current?.scheduleJobId) await cancelScheduledJob(current.scheduleJobId);
-  const [updated] = await db
-    .update(post)
-    .set({
-      status: "approved",
-      scheduledFor: null,
-      scheduleJobId: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(post.id, input.postId))
-    .returning();
-  await recordAudit({
-    tenantId: updated.tenantId,
-    postId: updated.id,
+  if (!current) throw new TransitionError(`No post ${input.postId}.`);
+  // Only a scheduled post has a schedule to clear. Without this check a
+  // published post could be walked back to `approved` and published again.
+  if (current.status !== "scheduled") {
+    throw new TransitionError(
+      `A post with status "${current.status}" has no schedule to clear.`,
+    );
+  }
+  if (current.scheduleJobId) await cancelScheduledJob(current.scheduleJobId);
+
+  return transition({
+    postId: input.postId,
+    to: "approved",
     actor: input.actor,
+    patch: { scheduledFor: null, scheduleJobId: null },
     action: "post.unscheduled",
   });
-  return updated;
 }
 
 export async function updateCaption(input: {
@@ -243,27 +292,25 @@ export async function updateCaption(input: {
   const db = await getDb();
   const [current] = await db.select().from(post).where(eq(post.id, input.postId));
   if (!current) throw new Error(`No post ${input.postId}.`);
-
-  const patch: Partial<typeof post.$inferInsert> = {
-    caption: input.caption,
-    updatedAt: new Date(),
-  };
-  // Editing after approval withdraws the approval. Someone has to look again.
-  if (editInvalidatesApproval(current.status as PostStatus)) {
-    if (current.scheduleJobId) await cancelScheduledJob(current.scheduleJobId);
-    patch.status = "pending_approval";
-    patch.approvedBy = null;
-    patch.approvedAt = null;
-    patch.scheduledFor = null;
-    patch.scheduleJobId = null;
+  if (current.status === "published") {
+    throw new TransitionError("A published post cannot be edited.");
   }
-  await db.update(post).set(patch).where(eq(post.id, input.postId));
+
+  await db
+    .update(post)
+    .set({ caption: input.caption, updatedAt: new Date() })
+    .where(eq(post.id, input.postId));
+  const withdrawn = await withdrawApprovalIfContentChanged({
+    postId: input.postId,
+    actor: input.actor,
+    reason: "caption edited",
+  });
   await recordAudit({
     tenantId: current.tenantId,
     postId: current.id,
     actor: input.actor,
     action: "post.caption_edited",
-    payload: { approvalWithdrawn: Boolean(patch.approvedBy === null && current.approvedBy) },
+    payload: { approvalWithdrawn: withdrawn },
   });
   return recomputeCompliance(input.postId);
 }
@@ -278,36 +325,33 @@ export async function updateSlideCopy(input: {
   const db = await getDb();
   const [current] = await db.select().from(post).where(eq(post.id, input.postId));
   if (!current) throw new Error(`No post ${input.postId}.`);
+  if (current.status === "published") {
+    throw new TransitionError("A published post cannot be edited.");
+  }
 
-  await db
+  const updated = await db
     .update(slide)
     .set({
       copy: input.copy,
       ...(input.altText !== undefined ? { altText: input.altText } : {}),
     })
-    .where(eq(slide.id, input.slideId));
-
-  if (editInvalidatesApproval(current.status as PostStatus)) {
-    if (current.scheduleJobId) await cancelScheduledJob(current.scheduleJobId);
-    await db
-      .update(post)
-      .set({
-        status: "pending_approval",
-        approvedBy: null,
-        approvedAt: null,
-        scheduledFor: null,
-        scheduleJobId: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(post.id, input.postId));
+    .where(and(eq(slide.id, input.slideId), eq(slide.postId, input.postId)))
+    .returning();
+  if (updated.length === 0) {
+    throw new Error("That slide does not belong to this post.");
   }
 
+  const withdrawn = await withdrawApprovalIfContentChanged({
+    postId: input.postId,
+    actor: input.actor,
+    reason: "slide copy edited",
+  });
   await recordAudit({
     tenantId: current.tenantId,
     postId: current.id,
     actor: input.actor,
     action: "slide.edited",
-    payload: { slideId: input.slideId },
+    payload: { slideId: input.slideId, approvalWithdrawn: withdrawn },
   });
 }
 
@@ -316,32 +360,59 @@ export async function reorderSlides(input: {
   order: string[];
   actor: Actor;
 }): Promise<void> {
+  const db = await getDb();
+  const [current] = await db.select().from(post).where(eq(post.id, input.postId));
+  if (!current) throw new Error(`No post ${input.postId}.`);
+  if (current.status === "published") {
+    throw new TransitionError("A published post cannot be reordered.");
+  }
+
+  const rows = await db.select().from(slide).where(eq(slide.postId, input.postId));
+  // The order has to be a permutation of this post's slides. A subset would
+  // renumber into a collision with the slides it left behind and strand them
+  // at negative positions.
+  const owned = new Set(rows.map((row) => row.id));
+  const unique = new Set(input.order);
+  if (
+    input.order.length !== owned.size ||
+    unique.size !== input.order.length ||
+    input.order.some((id) => !owned.has(id))
+  ) {
+    throw new Error("The new slide order does not match this post's slides.");
+  }
   if (input.order.length < MIN_CAROUSEL_ITEMS || input.order.length > MAX_CAROUSEL_ITEMS) {
     throw new Error(
       `A carousel must have between ${MIN_CAROUSEL_ITEMS} and ${MAX_CAROUSEL_ITEMS} slides.`,
     );
   }
-  const db = await getDb();
-  // Two passes: positions are unique per post, so park them out of the way.
-  for (const [index, id] of input.order.entries()) {
-    await db
-      .update(slide)
-      .set({ position: -(index + 1) })
-      .where(and(eq(slide.id, id), eq(slide.postId, input.postId)));
-  }
-  for (const [index, id] of input.order.entries()) {
-    await db
-      .update(slide)
-      .set({ position: index + 1 })
-      .where(and(eq(slide.id, id), eq(slide.postId, input.postId)));
-  }
-  const [current] = await db.select().from(post).where(eq(post.id, input.postId));
+
+  await db.transaction(async (tx) => {
+    // Two passes: positions are unique per post, so park them out of the way.
+    for (const [index, id] of input.order.entries()) {
+      await tx
+        .update(slide)
+        .set({ position: -(index + 1) })
+        .where(and(eq(slide.id, id), eq(slide.postId, input.postId)));
+    }
+    for (const [index, id] of input.order.entries()) {
+      await tx
+        .update(slide)
+        .set({ position: index + 1 })
+        .where(and(eq(slide.id, id), eq(slide.postId, input.postId)));
+    }
+  });
+
+  const withdrawn = await withdrawApprovalIfContentChanged({
+    postId: input.postId,
+    actor: input.actor,
+    reason: "slides reordered",
+  });
   await recordAudit({
     tenantId: current.tenantId,
     postId: input.postId,
     actor: input.actor,
     action: "slides.reordered",
-    payload: { order: input.order },
+    payload: { order: input.order, approvalWithdrawn: withdrawn },
   });
 }
 
@@ -352,28 +423,46 @@ export async function deleteSlide(input: {
 }): Promise<void> {
   const db = await getDb();
   const rows = await db.select().from(slide).where(eq(slide.postId, input.postId));
+  if (!rows.some((row) => row.id === input.slideId)) {
+    throw new Error("That slide does not belong to this post.");
+  }
   if (rows.length - 1 < MIN_CAROUSEL_ITEMS) {
     throw new Error(
       `A carousel needs at least ${MIN_CAROUSEL_ITEMS} slides. Delete the post instead.`,
     );
   }
-  await db.delete(slide).where(eq(slide.id, input.slideId));
+
+  // Scoped to the post: a slide id alone would let one post's request delete
+  // another post's slide.
+  const deleted = await db
+    .delete(slide)
+    .where(and(eq(slide.id, input.slideId), eq(slide.postId, input.postId)))
+    .returning();
+  if (deleted.length === 0) {
+    throw new Error("That slide no longer exists.");
+  }
+
   const remaining = rows
-    .filter((r) => r.id !== input.slideId)
+    .filter((row) => row.id !== input.slideId)
     .sort((a, b) => a.position - b.position);
   await reorderSlides({
     postId: input.postId,
-    order: remaining.map((r) => r.id),
+    order: remaining.map((row) => row.id),
     actor: input.actor,
   });
 }
 
-export async function photoHistory(slideId: string) {
+export async function photoHistory(input: { postId: string; slideId: string }) {
   const db = await getDb();
+  const [target] = await db
+    .select()
+    .from(slide)
+    .where(and(eq(slide.id, input.slideId), eq(slide.postId, input.postId)));
+  if (!target) return [];
   return db
     .select()
     .from(photoGeneration)
-    .where(eq(photoGeneration.slideId, slideId))
+    .where(eq(photoGeneration.slideId, input.slideId))
     .orderBy(desc(photoGeneration.createdAt))
     .limit(4);
 }
@@ -385,10 +474,29 @@ export async function selectPhoto(input: {
   actor: Actor;
 }): Promise<string> {
   const db = await getDb();
+  const [current] = await db.select().from(post).where(eq(post.id, input.postId));
+  if (!current) throw new Error(`No post ${input.postId}.`);
+  if (current.status === "published") {
+    throw new TransitionError("A published post cannot be edited.");
+  }
+
+  const [target] = await db
+    .select()
+    .from(slide)
+    .where(and(eq(slide.id, input.slideId), eq(slide.postId, input.postId)));
+  if (!target) throw new Error("That slide does not belong to this post.");
+
+  // Scoped to the slide: a generation id alone would let any image in the
+  // database be pasted onto this slide.
   const [generation] = await db
     .select()
     .from(photoGeneration)
-    .where(eq(photoGeneration.id, input.generationId));
+    .where(
+      and(
+        eq(photoGeneration.id, input.generationId),
+        eq(photoGeneration.slideId, input.slideId),
+      ),
+    );
   if (!generation) throw new Error("That generation no longer exists.");
 
   await db
@@ -404,13 +512,21 @@ export async function selectPhoto(input: {
     .set({ photoUrl: generation.url })
     .where(eq(slide.id, input.slideId));
 
-  const [current] = await db.select().from(post).where(eq(post.id, input.postId));
+  const withdrawn = await withdrawApprovalIfContentChanged({
+    postId: input.postId,
+    actor: input.actor,
+    reason: "hook photo changed",
+  });
   await recordAudit({
     tenantId: current.tenantId,
     postId: input.postId,
     actor: input.actor,
     action: "photo.selected",
-    payload: { slideId: input.slideId, generationId: input.generationId },
+    payload: {
+      slideId: input.slideId,
+      generationId: input.generationId,
+      approvalWithdrawn: withdrawn,
+    },
   });
   return generation.url;
 }
@@ -432,9 +548,12 @@ export interface QueueFilters {
 
 export async function listQueue(filters: QueueFilters) {
   const db = await getDb();
-  const scope = filters.tenantId && filters.tenantId !== "all"
-    ? [filters.tenantId]
-    : filters.tenantIds;
+  // The requested tenant comes from a query parameter. It narrows the user's
+  // own memberships and can never widen them.
+  const requested =
+    filters.tenantId && filters.tenantId !== "all" ? filters.tenantId : null;
+  if (requested && !filters.tenantIds.includes(requested)) return [];
+  const scope = requested ? [requested] : filters.tenantIds;
   if (scope.length === 0) return [];
 
   const where =
@@ -455,7 +574,10 @@ export async function listQueue(filters: QueueFilters) {
     .from(slide)
     .where(inArray(slide.postId, posts.map((p) => p.id)))
     .orderBy(slide.position);
-  const tenants = await db.select().from(tenant);
+  const tenants = await db
+    .select()
+    .from(tenant)
+    .where(inArray(tenant.id, scope));
 
   return posts.map((p) => ({
     post: p,

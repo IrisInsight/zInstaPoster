@@ -316,8 +316,17 @@ export async function publishPostById(input: {
   const [account] = await db
     .select()
     .from(igAccount)
-    .where(eq(igAccount.id, current.igAccountId));
-  if (!account) throw new PublishError("The connected account no longer exists.");
+    .where(
+      and(
+        eq(igAccount.id, current.igAccountId),
+        eq(igAccount.tenantId, current.tenantId),
+      ),
+    );
+  if (!account) {
+    throw new PublishError(
+      "The connected account no longer exists, or does not belong to this tenant.",
+    );
+  }
 
   const slides = await db
     .select()
@@ -372,6 +381,8 @@ export async function publishPostById(input: {
         permalink: result.permalink ?? null,
         publishedAt: new Date(),
         failureReason: null,
+        scheduledFor: null,
+        scheduleJobId: null,
         updatedAt: new Date(),
       })
       .where(eq(post.id, current.id));

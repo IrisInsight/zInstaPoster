@@ -33,7 +33,9 @@ export default async function ReviewPage({
     .where(eq(igAccount.tenantId, loaded.tenantId));
 
   const hookSlide = loaded.slides.find((s) => s.photoPrompt);
-  const generations = hookSlide ? await photoHistory(hookSlide.id) : [];
+  const generations = hookSlide
+    ? await photoHistory({ postId: id, slideId: hookSlide.id })
+    : [];
 
   const windows = nextWindows({
     windows: loaded.tenant.compliance_rules?.posting_windows ?? {},

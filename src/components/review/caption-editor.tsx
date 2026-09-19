@@ -9,10 +9,12 @@ const MAX_HASHTAGS = 5;
 export function CaptionEditor({
   postId,
   initial,
+  editable = true,
   onSaved,
 }: {
   postId: string;
   initial: string;
+  editable?: boolean;
   onSaved: (message: string) => void;
 }) {
   const [caption, setCaption] = useState(initial);
@@ -56,13 +58,14 @@ export function CaptionEditor({
         onChange={(event) => setCaption(event.target.value)}
         rows={12}
         spellCheck
-        className="w-full resize-y px-3 py-2.5 text-[13.5px] leading-relaxed outline-none"
+        disabled={!editable}
+        className="w-full resize-y px-3 py-2.5 text-[13.5px] leading-relaxed outline-none disabled:bg-[var(--color-canvas)]"
       />
 
       <footer className="flex items-center gap-2 border-t border-[var(--color-line)] px-3 py-2">
         <button
           type="button"
-          disabled={!dirty || pending}
+          disabled={!editable || !dirty || pending}
           onClick={() =>
             startTransition(async () => {
               const result = await saveCaptionAction(postId, caption);

@@ -107,6 +107,41 @@ test("a patient testimonial blocks", () => {
   assert.ok(ids.includes("no-testimonials-without-authorization"), ids.join(","));
 });
 
+test("deleting the protocol slide does not delete the disclaimer requirement", () => {
+  // The rule exists so a compounded product is never named without the FDA
+  // disclaimer. If the absence of the slide made the rule pass, deleting the
+  // slide would be a way around it.
+  const carousel = structuredClone(seeds.carousels[0]);
+  carousel.caption = carousel.caption.replace(
+    "A topical works on the surface.",
+    "Our compounded peptide formula works on the surface.",
+  );
+  carousel.slides = carousel.slides.filter((s: any) => s.type !== "protocol");
+  const report = evaluate(rules, subjectFrom(carousel));
+  const ids = report.findings.filter((f) => f.severity === "blocking").map((f) => f.ruleId);
+  assert.ok(ids.includes("compounded-disclaimer-required"), ids.join(","));
+  assert.equal(report.approvable, false);
+});
+
+test("a rule that depends on case is matched with case", () => {
+  // The comment-keyword CTA is only a keyword because it is uppercase, so the
+  // rule must not be satisfied by the word "comment" followed by lowercase.
+  const carousel = structuredClone(seeds.carousels[0]);
+  carousel.caption = carousel.caption.replace(
+    "Comment SKIN and I will send you the panel we run before we recommend anything.",
+    "Comment below and I will send you the panel we run before we recommend anything.",
+  );
+  const report = evaluate(rules, subjectFrom(carousel));
+  const ids = report.findings.filter((f) => f.severity === "warning").map((f) => f.ruleId);
+  assert.ok(ids.includes("caption-comment-keyword-cta"), ids.join(","));
+
+  // The shipped caption, with a real keyword, does not raise it.
+  const original = evaluate(rules, subjectFrom(seeds.carousels[0]));
+  assert.ok(
+    !original.findings.some((f) => f.ruleId === "caption-comment-keyword-cta"),
+  );
+});
+
 test("an unknown check name blocks rather than silently passing", () => {
   const broken = {
     ruleset: "test",
