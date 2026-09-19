@@ -23,7 +23,7 @@ npm run dev
 ```
 
 With an empty `.env` this works immediately: the database is PGlite in
-`.pglite/`, rendered slides go to `.storage/` and are served from `/api/media/…`,
+`.pglite/`, rendered slides are stored in it and served from `/api/media/…`,
 and the scheduler uses in-process timers. The UI says which capabilities are
 switched off. Sign in with the access code `zinstaposter`.
 
@@ -75,7 +75,7 @@ src/lib/
   instagram/      OAuth, encrypted tokens, refresh, the 3-step publish flow
   posts/          state machine and the service that enforces it
   scheduler/      QStash, with a local driver and a sweep safety net
-  storage.ts      Vercel Blob, with a local driver for development
+  storage.ts      Vercel Blob, or the database when no Blob token is set
   db/             Drizzle schema and driver selection
 src/app/
   (app)/          queue, compose, review, accounts, post detail
@@ -217,8 +217,11 @@ or the `CRON_SECRET` header.
 1. Vercel project on team `iris-codes`. Set every variable from `.env.example`.
 2. Postgres on Neon or Supabase → `DATABASE_URL`. Run `npm run db:push`, or apply
    `drizzle/` with your own migration runner.
-3. Vercel Blob store → `BLOB_READ_WRITE_TOKEN`. URLs must be public and
-   non-expiring: Meta fetches them, unauthenticated, at publish time.
+3. Vercel Blob store → `BLOB_READ_WRITE_TOKEN`. Optional. Without it, slides
+   are stored in the database and served from `/api/media/…` by the app
+   itself, which is equally public and needs no second service. Either way the
+   URL must be public and non-expiring: Meta fetches it, unauthenticated, at
+   publish time. Blob is worth adding once volume makes a CDN matter.
 4. QStash → `QSTASH_TOKEN` and both signing keys.
 5. `npm run db:seed` once against the production database to load tenants.
 
@@ -276,8 +279,10 @@ reason written next to it.
 - **Unversioned graph calls.** `graphGet`/`graphPost` always insert the pinned
   version.
 - **Silent token refresh failure.** Alerts are wired and tested.
-- **Signed or expiring blob URLs.** `isPubliclyFetchable` refuses anything that
-  is not a public https URL before a container is created.
+- **Signed or expiring image URLs.** `isPubliclyFetchable` refuses anything
+  that is not a public https URL before a container is created. With the
+  database store that means `APP_BASE_URL` has to be the real deployed origin,
+  not localhost.
 - **Trusting the model for compliance.** Every generation is re-validated in code
   against the tenant's ruleset before it can reach `pending_approval`.
 - **Private or personal Instagram accounts.** Must be public Business or Creator.

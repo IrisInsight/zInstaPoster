@@ -238,6 +238,25 @@ export const publishAttempt = pgTable(
   (t) => [index("publish_attempt_account").on(t.igAccountId, t.createdAt)],
 );
 
+/**
+ * Rendered slides, when no object store is configured.
+ *
+ * Instagram fetches slide images itself, unauthenticated, from a public https
+ * URL. With no Blob store available the app is its own image host: bytes live
+ * here and /api/media/… serves them. Base64 rather than bytea because it
+ * behaves identically across every Postgres driver this app runs on, and a
+ * slide is well under a megabyte.
+ */
+export const mediaObject = pgTable("media_object", {
+  pathname: text("pathname").primaryKey(),
+  contentType: text("content_type").notNull(),
+  bytes: integer("bytes").notNull(),
+  data: text("data").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export type Tenant = typeof tenant.$inferSelect;
 export type AppUser = typeof appUser.$inferSelect;
 export type IgAccount = typeof igAccount.$inferSelect;

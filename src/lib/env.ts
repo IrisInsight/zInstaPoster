@@ -82,9 +82,6 @@ export const env = {
   get blobToken(): string | undefined {
     return optional("BLOB_READ_WRITE_TOKEN");
   },
-  get localStorageDir(): string {
-    return optional("LOCAL_STORAGE_DIR") ?? "./.storage";
-  },
 
   // ── Scheduler ─────────────────────────────────────────────────────────
   get qstashToken(): string | undefined {

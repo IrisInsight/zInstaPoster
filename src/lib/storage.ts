@@ -1,5 +1,4 @@
-import { mkdir, writeFile, readFile, stat } from "node:fs/promises";
-import path from "node:path";
+import { eq } from "drizzle-orm";
 import { env } from "@/lib/env";
 
 /**
@@ -7,9 +6,12 @@ import { env } from "@/lib/env";
  * image itself at publish time, unauthenticated. A signed or expiring URL is a
  * publish failure waiting to happen.
  *
- *  - BLOB_READ_WRITE_TOKEN set → Vercel Blob, public access.
- *  - otherwise               → the local disk driver, served unauthenticated
- *                              from /api/media/… so dev matches production.
+ *  - BLOB_READ_WRITE_TOKEN set → Vercel Blob, public access, served by its CDN.
+ *  - otherwise                 → the database, served from /api/media/… by this
+ *                                app, which is a public https URL like any
+ *                                other. Slower and not on a CDN, but it needs
+ *                                no second service, and it behaves the same in
+ *                                development as in production.
  */
 
 export interface StoredObject {
@@ -19,14 +21,10 @@ export interface StoredObject {
   contentType: string;
 }
 
-export type StorageDriver = "vercel-blob" | "local";
+export type StorageDriver = "vercel-blob" | "database";
 
 export function storageDriver(): StorageDriver {
-  return env.blobToken ? "vercel-blob" : "local";
-}
-
-function localRoot(): string {
-  return path.resolve(process.cwd(), env.localStorageDir);
+  return env.blobToken ? "vercel-blob" : "database";
 }
 
 export async function putObject(
@@ -34,9 +32,11 @@ export async function putObject(
   body: Buffer,
   contentType: string,
 ): Promise<StoredObject> {
+  const clean = pathname.replace(/^\/+/, "");
+
   if (storageDriver() === "vercel-blob") {
     const { put } = await import("@vercel/blob");
-    const result = await put(pathname, body, {
+    const result = await put(clean, body, {
       access: "public",
       contentType,
       token: env.blobToken,
@@ -54,36 +54,41 @@ export async function putObject(
     };
   }
 
-  const target = path.join(localRoot(), pathname);
-  if (!target.startsWith(localRoot() + path.sep)) {
-    throw new Error("Refusing to write outside the storage root.");
-  }
-  await mkdir(path.dirname(target), { recursive: true });
-  await writeFile(target, body);
-  await writeFile(`${target}.type`, contentType, "utf8");
+  const { getDb, mediaObject } = await import("@/lib/db");
+  const db = await getDb();
+  const row = {
+    pathname: clean,
+    contentType,
+    bytes: body.byteLength,
+    data: body.toString("base64"),
+  };
+  await db
+    .insert(mediaObject)
+    .values(row)
+    .onConflictDoUpdate({ target: mediaObject.pathname, set: row });
+
   return {
-    url: `${env.appBaseUrl}/api/media/${pathname}`,
-    pathname,
+    url: `${env.appBaseUrl.replace(/\/+$/, "")}/api/media/${clean}`,
+    pathname: clean,
     bytes: body.byteLength,
     contentType,
   };
 }
 
-export async function getLocalObject(
+export async function getObject(
   pathname: string,
 ): Promise<{ body: Buffer; contentType: string } | undefined> {
-  const target = path.join(localRoot(), pathname);
-  if (!target.startsWith(localRoot() + path.sep)) return undefined;
-  try {
-    await stat(target);
-  } catch {
-    return undefined;
-  }
-  const [body, type] = await Promise.all([
-    readFile(target),
-    readFile(`${target}.type`, "utf8").catch(() => "application/octet-stream"),
-  ]);
-  return { body, contentType: type.trim() };
+  const { getDb, mediaObject } = await import("@/lib/db");
+  const db = await getDb();
+  const [row] = await db
+    .select()
+    .from(mediaObject)
+    .where(eq(mediaObject.pathname, pathname.replace(/^\/+/, "")));
+  if (!row) return undefined;
+  return {
+    body: Buffer.from(row.data, "base64"),
+    contentType: row.contentType,
+  };
 }
 
 /**

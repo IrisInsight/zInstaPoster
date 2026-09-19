@@ -15,6 +15,13 @@
       "when": 1789840671706,
       "tag": "0001_access_code_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789857201479,
+      "tag": "0002_media_objects",
+      "breakpoints": true
     }
   ]
 }
