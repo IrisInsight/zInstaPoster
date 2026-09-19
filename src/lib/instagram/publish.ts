@@ -1,4 +1,4 @@
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, inArray } from "drizzle-orm";
 import { recordAudit, systemActor } from "@/lib/audit";
 import {
   getDb,
@@ -325,10 +325,29 @@ export async function publishPostById(input: {
     .where(eq(slide.postId, current.id))
     .orderBy(slide.position);
 
-  await db
+  // Claim the post before doing anything irreversible. A scheduled job firing
+  // at the same moment as someone pressing Post now would otherwise both pass
+  // the status check above and publish the carousel twice.
+  const [claimed] = await db
     .update(post)
     .set({ status: "publishing", failureReason: null, updatedAt: new Date() })
-    .where(eq(post.id, current.id));
+    .where(
+      and(
+        eq(post.id, current.id),
+        inArray(post.status, ["approved", "scheduled", "failed"]),
+      ),
+    )
+    .returning();
+  if (!claimed) {
+    const [latest] = await db.select().from(post).where(eq(post.id, current.id));
+    if (latest?.status === "published") {
+      return { status: "published", mediaId: latest.publishedMediaId ?? undefined };
+    }
+    throw new PublishError(
+      "Another publish attempt for this post is already in flight.",
+    );
+  }
+
   await recordAudit({
     tenantId: current.tenantId,
     postId: current.id,

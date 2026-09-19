@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test, { before, beforeEach } from "node:test";
+import { eq } from "drizzle-orm";
 import { useTestDatabase } from "./helpers/db.ts";
 
 await useTestDatabase();
@@ -300,6 +301,37 @@ test("preflight rejects the failure modes that fail silently at Meta", () => {
     /never been approved/,
   );
   assert.ok(new PublishError("x") instanceof Error);
+});
+
+test("two publish attempts for one post cannot both go through", async () => {
+  const { postId } = await makePost();
+  const [first, second] = await Promise.allSettled([
+    publishPostById({ postId, actorLabel: "scheduler" }),
+    publishPostById({ postId, actorLabel: "someone pressing Post now" }),
+  ]);
+
+  const outcomes = [first, second].map((r) =>
+    r.status === "fulfilled" ? r.value.status : "rejected",
+  );
+  assert.ok(
+    outcomes.includes("published"),
+    `one attempt should publish, got ${outcomes.join(" and ")}`,
+  );
+
+  // Exactly one carousel reaches Instagram, whichever attempt won.
+  const publishes = calls.filter((c) => c.url.includes("/media_publish"));
+  assert.equal(publishes.length, 1, "media_publish must be called once");
+
+  const db = await getDb();
+  const attempts = await db
+    .select()
+    .from(publishAttempt)
+    .where(eq(publishAttempt.postId, postId));
+  assert.equal(
+    attempts.filter((a) => a.succeeded === "true").length,
+    1,
+    "one successful publish is recorded",
+  );
 });
 
 test.after(() => {
