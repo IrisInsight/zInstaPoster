@@ -101,6 +101,20 @@ export const env = {
   },
 
   // ── Auth ──────────────────────────────────────────────────────────────
+  /**
+   * The access code. It is the only thing standing between the public internet
+   * and the app, so it is required in production and should be long.
+   */
+  get accessCode(): string {
+    const code = optional("ACCESS_CODE");
+    if (code) return code;
+    if (env.isProduction) {
+      throw new Error("ACCESS_CODE is required in production.");
+    }
+    // Development fallback so the app runs with an empty .env.
+    return "zinstaposter";
+  },
+
   get authSecret(): string {
     const secret = optional("AUTH_SECRET");
     if (secret) return secret;

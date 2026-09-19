@@ -46,10 +46,10 @@ export default async function AppLayout({
             <form action={signOutAction}>
               <button
                 type="submit"
-                title={user.email}
+                title={`Signed in as ${user.name}`}
                 className="rounded-md border border-[var(--color-line)] px-2.5 py-1.5 text-[12.5px] text-[var(--color-muted)] hover:bg-[var(--color-canvas)]"
               >
-                {user.name.split(" ")[0]}
+                Sign out
               </button>
             </form>
           </div>

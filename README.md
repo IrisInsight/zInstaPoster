@@ -25,7 +25,19 @@ npm run dev
 With an empty `.env` this works immediately: the database is PGlite in
 `.pglite/`, rendered slides go to `.storage/` and are served from `/api/media/…`,
 and the scheduler uses in-process timers. The UI says which capabilities are
-switched off. Sign in with the credentials `db:seed` prints.
+switched off. Sign in with the access code `zinstaposter`.
+
+**Access is one shared code**, `ACCESS_CODE`, required in production. There is
+no email and no password. The code signs in as a single seated user row, which
+carries the tenant memberships and supplies the label the audit trail records,
+so giving people their own credentials later is a change to that row rather
+than to anything downstream of it.
+
+Because the code is shared, an approval in the audit trail names the seat
+("Practice Owner") rather than a person. That is deliberate: the app records
+what it can actually know. Per-person accounts are what make an approval
+attributable to an individual, and for a medical tenant that is worth having
+before the tool carries real compliance weight.
 
 Add `ANTHROPIC_API_KEY` to generate copy, `GEMINI_API_KEY` to generate photos.
 Everything else is listed in `.env.example`.

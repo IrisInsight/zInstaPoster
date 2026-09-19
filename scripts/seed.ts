@@ -8,15 +8,14 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
-import { hashPassword } from "@/lib/crypto";
 import { appUser, closeDb, getDb, post, slide, tenant, userTenant } from "@/lib/db";
 import { readTenantFiles, splitTenantConfig, tenantConfigFromRow } from "@/lib/tenants";
 import { recordAudit, systemActor } from "@/lib/audit";
 import { fillPhotos, renderPost, runCompliance } from "@/lib/content/pipeline";
 import { closeBrowser } from "@/lib/render/browser";
 
-const SEED_EMAIL = process.env.SEED_USER_EMAIL ?? "owner@precision-vitality.com";
-const SEED_PASSWORD = process.env.SEED_USER_PASSWORD ?? "zinstaposter";
+/** The name that appears in the audit trail as the approver. */
+const SEAT_NAME = process.env.SEED_USER_NAME ?? "Practice Owner";
 /** SEED_RENDER=false skips rendering, which is the slow part. */
 const RENDER = process.env.SEED_RENDER !== "false";
 
@@ -44,21 +43,22 @@ async function main() {
     .from(tenant)
     .where(eq(tenant.slug, "precision-vitality"));
 
-  let [user] = await db.select().from(appUser).where(eq(appUser.email, SEED_EMAIL));
+  const existingUsers = await db.select().from(appUser).limit(1);
+  let user = existingUsers[0];
   if (!user) {
     [user] = await db
       .insert(appUser)
-      .values({
-        email: SEED_EMAIL,
-        name: "Practice Owner",
-        passwordHash: hashPassword(SEED_PASSWORD),
-        role: "owner",
-      })
+      .values({ name: SEAT_NAME, role: "owner" })
       .returning();
-    console.log(`user    created  ${SEED_EMAIL} / ${SEED_PASSWORD}`);
+    console.log(`user    created  "${user.name}"`);
   } else {
-    console.log(`user    exists   ${SEED_EMAIL}`);
+    console.log(`user    exists   "${user.name}"`);
   }
+  console.log(
+    `access  sign in with the ACCESS_CODE from the environment${
+      process.env.ACCESS_CODE ? "" : ' (unset, so the development default "zinstaposter")'
+    }`,
+  );
 
   for (const t of await db.select().from(tenant)) {
     await db

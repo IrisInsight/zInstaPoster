@@ -6,14 +6,13 @@
  *   npm run dev            # in one terminal
  *   npm run ui:smoke       # in another
  *
- * Set SMOKE_BASE_URL, SMOKE_EMAIL and SMOKE_PASSWORD to point it elsewhere.
+ * Set SMOKE_BASE_URL and SMOKE_ACCESS_CODE to point it elsewhere.
  */
 import { chromium } from "playwright-core";
 import { chromiumExecutableOverride } from "@/lib/env";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
-const EMAIL = process.env.SMOKE_EMAIL ?? "owner@precision-vitality.com";
-const PASSWORD = process.env.SMOKE_PASSWORD ?? "zinstaposter";
+const ACCESS_CODE = process.env.SMOKE_ACCESS_CODE ?? process.env.ACCESS_CODE ?? "zinstaposter";
 
 async function main() {
   const executablePath =
@@ -59,12 +58,13 @@ async function main() {
   console.log(`walking ${BASE}\n`);
 
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
-  await page.fill("input[name=email]", EMAIL);
-  await page.fill("input[name=password]", PASSWORD);
+  await page.fill("input[name=code]", ACCESS_CODE);
   await page.click("button[type=submit]");
   await page.waitForTimeout(2500);
   if (page.url().includes("/login")) {
-    throw new Error(`Could not sign in as ${EMAIL}. Run npm run db:seed first.`);
+    throw new Error(
+      "The access code was rejected. Check ACCESS_CODE and that npm run db:seed has run.",
+    );
   }
   console.log("  ✓ /login");
 

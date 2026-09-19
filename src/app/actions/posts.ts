@@ -254,7 +254,7 @@ export async function publishNowAction(postId: string): Promise<ActionResult> {
     }
     const result = await publishPostById({
       postId,
-      actorLabel: `${user.name} <${user.email}>`,
+      actorLabel: actorFor(user).label,
     });
     refresh(postId);
     if (result.status === "failed") {

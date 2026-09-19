@@ -54,11 +54,19 @@ export const tenant = pgTable("tenant", {
     .defaultNow(),
 });
 
+/**
+ * Who can act in the app.
+ *
+ * Access is currently a single shared access code, so one row here stands for
+ * "whoever holds the code" and carries the tenant memberships and the label
+ * that lands in the audit log. Per-person accounts drop in later by giving
+ * rows their own credential without changing anything downstream.
+ */
 export const appUser = pgTable("app_user", {
   id: uuid("id").defaultRandom().primaryKey(),
-  email: text("email").notNull().unique(),
+  /** Optional. Not a credential — the access code is. */
+  email: text("email").unique(),
   name: text("name").notNull(),
-  passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("approver"), // owner | approver | editor
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

@@ -84,18 +84,12 @@ export function verifySignature(
   return timingSafeEqual(expected, actual);
 }
 
-export function hashPassword(password: string, salt = randomBytes(16)): string {
-  const derived = scryptSync(password, salt, 64);
-  return `scrypt.${salt.toString("base64url")}.${derived.toString("base64url")}`;
-}
-
-export function verifyPassword(password: string, stored: string): boolean {
-  const [scheme, salt, digest] = stored.split(".");
-  if (scheme !== "scrypt" || !salt || !digest) return false;
-  const expected = Buffer.from(digest, "base64url");
-  const actual = scryptSync(password, Buffer.from(salt, "base64url"), 64);
-  if (expected.length !== actual.length) return false;
-  return timingSafeEqual(expected, actual);
+/** Constant-time string comparison, for secrets supplied by a caller. */
+export function secretsMatch(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
 }
 
 export function randomToken(bytes = 24): string {

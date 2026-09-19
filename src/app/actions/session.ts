@@ -2,17 +2,21 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { signIn, signOut } from "@/lib/auth";
+import { AccessDenied, signInWithCode, signOut } from "@/lib/auth";
 import { setActiveTenant } from "@/lib/tenant-context";
 
 export async function signInAction(
   _state: { error?: string } | undefined,
   formData: FormData,
 ): Promise<{ error?: string }> {
-  const email = String(formData.get("email") ?? "");
-  const password = String(formData.get("password") ?? "");
-  const user = await signIn(email, password);
-  if (!user) return { error: "That email and password do not match." };
+  const code = String(formData.get("code") ?? "");
+  try {
+    const user = await signInWithCode(code);
+    if (!user) return { error: "That access code is not right." };
+  } catch (error) {
+    if (error instanceof AccessDenied) return { error: error.message };
+    throw error;
+  }
   redirect("/");
 }
 
