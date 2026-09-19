@@ -9,7 +9,8 @@ import test from "node:test";
  * be present.
  */
 
-process.env.NODE_ENV = "production";
+// NODE_ENV is typed read-only; the verifier reads it at call time.
+(process.env as Record<string, string>).NODE_ENV = "production";
 process.env.CRON_SECRET = "top-secret";
 process.env.QSTASH_CURRENT_SIGNING_KEY = "sig_current";
 process.env.QSTASH_NEXT_SIGNING_KEY = "sig_next";
