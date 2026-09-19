@@ -215,15 +215,51 @@ or the `CRON_SECRET` header.
 ## Deploying
 
 1. Vercel project on team `iris-codes`. Set every variable from `.env.example`.
-2. Postgres on Neon or Supabase → `DATABASE_URL`. Run `npm run db:push`, or apply
-   `drizzle/` with your own migration runner.
-3. Vercel Blob store → `BLOB_READ_WRITE_TOKEN`. Optional. Without it, slides
+2. Postgres on Neon or Supabase → `DATABASE_URL`. Nothing else to do: the build
+   runs `scripts/bootstrap.ts`, which applies `drizzle/` and seeds the tenants.
+3. **Turn off Vercel Authentication**, or publishing cannot work. See below.
+4. Vercel Blob store → `BLOB_READ_WRITE_TOKEN`. Optional. Without it, slides
    are stored in the database and served from `/api/media/…` by the app
    itself, which is equally public and needs no second service. Either way the
    URL must be public and non-expiring: Meta fetches it, unauthenticated, at
    publish time. Blob is worth adding once volume makes a CDN matter.
-4. QStash → `QSTASH_TOKEN` and both signing keys.
-5. `npm run db:seed` once against the production database to load tenants.
+5. QStash → `QSTASH_TOKEN` and both signing keys.
+
+### The database is only reachable from inside the deployment
+
+Neon sits behind the deployment, not in front of it, so migrating from a laptop
+means handing the production connection string to whoever is deploying. Instead
+`vercel-build` runs `npm run db:bootstrap` before `next build`: it applies the
+migrations in `drizzle/` in journal order, then seeds. Both steps are
+idempotent, an advisory lock serialises concurrent deploys, and a failure fails
+the build — where the log is, rather than at publish time in the dark.
+
+It uses `DATABASE_URL_UNPOOLED` when Neon provides it, because DDL through
+PgBouncer in transaction mode fails in ways that are tedious to diagnose. Only
+production deploys bootstrap: previews share the same connection string, so
+migrating from one would reshape production from an unreviewed branch.
+
+Rendering is the one step allowed to fail without failing the deploy. The posts
+are still correct without their images, `/api/health` reports exactly which
+slides are missing, and re-running the seed fills them in.
+
+### Deployment protection breaks publishing
+
+Vercel Authentication (Project → Settings → Deployment Protection) gates every
+request to a `*.vercel.app` URL, including `/api/media/…`. Instagram fetches
+slide images from its own servers with no credentials, so with protection on,
+every publish fails with an error from Meta that says nothing about the cause —
+while the app looks perfectly healthy in a browser that is already signed in.
+
+Either turn Vercel Authentication off, or serve the app from a custom domain
+(the `all_except_custom_domains` setting exempts those). The app's own gate is
+`ACCESS_CODE`, which is required in production and is what is supposed to be
+standing in front of it.
+
+`GET /api/health` is the check: it fetches its own slide URLs the way Meta
+does — no cookies, no headers — and reports the status, byte count and the
+dimensions parsed out of each JPEG. `ok` is true only when every slide comes
+back as a real JPEG at the tenant's exact size.
 
 Chromium comes from `@sparticuz/chromium` when `VERCEL` is set, and from
 Playwright's own download locally. `CHROMIUM_EXECUTABLE_PATH` overrides both.

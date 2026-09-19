@@ -15,7 +15,9 @@
     "render:smoke": "tsx scripts/render-smoke.ts",
     "pipeline:smoke": "tsx scripts/pipeline-smoke.ts",
     "test": "node --import tsx --test tests/*.test.ts",
-    "ui:smoke": "tsx scripts/ui-smoke.ts"
+    "ui:smoke": "tsx scripts/ui-smoke.ts",
+    "vercel-build": "tsx scripts/bootstrap.ts && next build",
+    "db:bootstrap": "tsx scripts/bootstrap.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
