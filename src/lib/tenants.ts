@@ -17,21 +17,71 @@ export interface OutputSpec {
   max_bytes: number;
 }
 
+export interface PhotoSlot {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface SlideSpec {
   has_photo?: boolean;
-  photo_slot?: { x: number; y: number; w: number; h: number };
+  photo_slot?: PhotoSlot;
   background?: string;
   elements: string[];
   items?: { min: number; max: number };
   cards?: { count: number };
   headline_max_words?: number;
+  /** The fixed word the template prints on the slide, e.g. "Myth". */
+  label?: string;
+  /**
+   * A slide the writer may leave out. Only trailing slides can be optional:
+   * a template is a prefix of its own structure, never a gap in the middle.
+   */
+  optional?: boolean;
   rule?: string;
 }
 
 export interface TemplateDefinition {
   slides: number;
   structure: string[];
+  /** One line on what this template is for. Shown in the picker, and it is
+   *  what the model reads when it infers a template from a prompt. */
+  use_when?: string;
   slide_specs: Record<string, SlideSpec>;
+}
+
+const DEFAULT_PHOTO_SLOT: PhotoSlot = { x: 0, y: 0, w: 1080, h: 560 };
+
+/**
+ * Where a slide's photo goes. Named per slide type, because the slide that
+ * carries the photograph is the hook in one template and the whole card in
+ * another.
+ */
+export function photoSlotFor(
+  template: TemplateDefinition | undefined,
+  slideType: string,
+): PhotoSlot {
+  const spec = template?.slide_specs?.[slideType];
+  if (spec?.photo_slot) return spec.photo_slot;
+  const anySlot = Object.values(template?.slide_specs ?? {}).find(
+    (s) => s.photo_slot,
+  )?.photo_slot;
+  return anySlot ?? DEFAULT_PHOTO_SLOT;
+}
+
+/**
+ * The shortest run a template accepts. Trailing slides marked `optional` may
+ * be dropped — a myth buster is two slides, or three when the consult card
+ * earns its place.
+ */
+export function minimumSlides(template: TemplateDefinition): number {
+  let count = template.structure.length;
+  for (let i = template.structure.length - 1; i >= 0; i--) {
+    if (!template.slide_specs?.[template.structure[i]]?.optional) break;
+    count -= 1;
+  }
+  return Math.max(1, count);
 }
 
 export interface TenantConfig {
@@ -46,8 +96,25 @@ export interface TenantConfig {
   output: OutputSpec;
   compliance_rules: RuleSet;
   templates: Record<string, TemplateDefinition>;
+  /** The template a post falls back to when nothing else picks one. */
+  primary_template?: string;
   disclaimers: Record<string, string>;
   footer: { left: string; right: string; contact: string };
+}
+
+/**
+ * The tenant's default template.
+ *
+ * Not "the first key": templates round-trip through a jsonb column, and
+ * Postgres does not preserve key order. Which template a post gets by default
+ * is not something to leave to that.
+ */
+export function primaryTemplate(tenant: TenantConfig): string {
+  const names = Object.keys(tenant.templates ?? {});
+  if (names.length === 0) throw new Error(`Tenant ${tenant.slug} has no templates.`);
+  return tenant.primary_template && names.includes(tenant.primary_template)
+    ? tenant.primary_template
+    : names[0];
 }
 
 const TENANTS_DIR = path.join(process.cwd(), "tenants");

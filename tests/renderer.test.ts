@@ -26,13 +26,27 @@ const seeds = JSON.parse(
 );
 const carousel = seeds.carousels[0];
 
-function slideInput(raw: Record<string, unknown>) {
+interface SeedCarousel {
+  slug: string;
+  kicker: string;
+  template?: string;
+  slides: Record<string, unknown>[];
+}
+
+function carouselFor(template: string): SeedCarousel {
+  const match = seeds.carousels.find((c: SeedCarousel) => c.template === template);
+  assert.ok(match, `no seed carousel for template "${template}"`);
+  return match;
+}
+
+function slideInput(raw: Record<string, unknown>, from: SeedCarousel = carousel) {
   return {
     position: raw.position as number,
     type: raw.type as SlideType,
-    copy: { ...raw, kicker: carousel.kicker },
+    copy: { ...raw, kicker: from.kicker },
     photoUrl: null,
     photoPrompt: (raw.photo_prompt as string) ?? null,
+    template: from.template ?? seeds.template,
   };
 }
 
@@ -70,6 +84,76 @@ test("a headline far longer than the model would write still fits the frame", as
     height: tenant.output.height,
   });
   assert.ok(rendered.bytes < MAX_BYTES);
+});
+
+test("every template's slides render at the tenant's one set of dimensions", async () => {
+  const sizes = new Set<string>();
+  for (const template of ["myth_buster", "single_card"]) {
+    const seed = carouselFor(template);
+    for (const raw of seed.slides) {
+      const rendered = await renderSlide({ tenant, slide: slideInput(raw, seed) });
+      assert.ok(isJpeg(rendered.buffer), `${seed.slug} ${raw.type} is not a JPEG`);
+      assert.ok(rendered.bytes < MAX_BYTES);
+      const dims = jpegDimensions(rendered.buffer);
+      assert.deepEqual(dims, {
+        width: tenant.output.width,
+        height: tenant.output.height,
+      });
+      sizes.add(`${dims?.width}x${dims?.height}`);
+    }
+  }
+  assert.equal(sizes.size, 1, "a slide is 1080×1350 whatever template it came from");
+});
+
+test("a myth statement far longer than the model would write still fits", async () => {
+  const seed = carouselFor("myth_buster");
+  const long = {
+    ...seed.slides[0],
+    headline:
+      "If your testosterone number came back inside the reference range then whatever you are feeling is not hormonal and there is nothing further to test",
+  };
+  const rendered = await renderSlide({ tenant, slide: slideInput(long, seed) });
+  assert.deepEqual(jpegDimensions(rendered.buffer), {
+    width: tenant.output.width,
+    height: tenant.output.height,
+  });
+});
+
+test("the script line is set in the display face, not the script one", async () => {
+  const html = await slideHtml({ tenant, slide: slideInput(carousel.slides[0]) });
+  // Parisienne stays embedded and available; nothing on a slide is set in it.
+  const markup = html.slice(html.indexOf("</style>"));
+  assert.ok(
+    !/Parisienne/.test(markup),
+    "no slide element may be set in Parisienne",
+  );
+  assert.match(html, /@font-face\{font-family:'Parisienne'/, "the face stays loaded");
+
+  const scriptLine = markup.match(/<p[^>]*data-fit="48,28"[^>]*>/)?.[0] ?? "";
+  assert.match(scriptLine, /Cormorant Garamond/);
+  assert.match(scriptLine, /font-style:italic/);
+  assert.match(scriptLine, /font-size:48px/, "the size range is unchanged");
+  assert.ok(
+    scriptLine.includes(tenant.brand_tokens.color.gold_text),
+    "the colour is unchanged",
+  );
+});
+
+test("a single card scrims the photo so the statement stays readable", async () => {
+  const seed = carouselFor("single_card");
+  const html = await slideHtml({
+    tenant,
+    slide: {
+      ...slideInput(seed.slides[0], seed),
+      photoUrl: "https://blob.example.com/photo.jpg",
+    },
+  });
+  assert.match(html, /linear-gradient\(180deg, rgba\(23,57,92/);
+  assert.ok(html.includes("https://blob.example.com/photo.jpg"));
+  assert.ok(
+    html.includes(tenant.footer.contact),
+    "the brand footer is on the card",
+  );
 });
 
 test("slide markup carries the tenant's brand, embedded fonts and no tool branding", async () => {

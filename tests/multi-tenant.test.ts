@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { evaluate, predicateNames } from "@/lib/compliance/engine";
 import type { ComplianceSubject, RuleSet } from "@/lib/compliance/types";
+import { primaryTemplate, type TenantConfig } from "@/lib/tenants";
 
 /**
  * The rules engine has to be data-driven, because tenants 2–15 are senior
@@ -11,13 +12,15 @@ import type { ComplianceSubject, RuleSet } from "@/lib/compliance/types";
  * code path of its own.
  */
 
-const medical: RuleSet = JSON.parse(
+const medicalConfig: TenantConfig = JSON.parse(
   await readFile("tenants/precision-vitality.json", "utf8"),
-).compliance_rules;
+);
+const medical: RuleSet = medicalConfig.compliance_rules;
 
-const seniorLiving: RuleSet = JSON.parse(
+const seniorLivingConfig: TenantConfig = JSON.parse(
   await readFile("docs/example-tenant-senior-living.json", "utf8"),
-).compliance_rules;
+);
+const seniorLiving: RuleSet = seniorLivingConfig.compliance_rules;
 
 function subject(caption: string, photoPrompt?: string): ComplianceSubject {
   return {
@@ -131,4 +134,31 @@ test("the same caption is judged differently by each tenant", () => {
   assert.ok(medicalIds.includes("no-outcome-claims"));
   assert.ok(!medicalIds.includes("fair-housing-no-preference-language"));
   assert.ok(seniorIds.includes("fair-housing-no-preference-language"));
+});
+
+test("the default template does not depend on key order", () => {
+  // Templates round-trip through a jsonb column and Postgres reorders object
+  // keys, so "the first template" is not a stable answer to "which one by
+  // default". Every tenant with more than one has to name it.
+  const config = medicalConfig;
+  assert.equal(primaryTemplate(config), "symptom_carousel");
+
+  const reordered: TenantConfig = {
+    ...config,
+    templates: Object.fromEntries(
+      Object.entries(config.templates).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  };
+  assert.notEqual(Object.keys(reordered.templates)[0], "symptom_carousel");
+  assert.equal(primaryTemplate(reordered), "symptom_carousel");
+
+  for (const shipped of [config, seniorLivingConfig]) {
+    if (Object.keys(shipped.templates).length > 1) {
+      assert.ok(
+        shipped.primary_template,
+        `${shipped.slug} ships several templates and names no primary`,
+      );
+    }
+    assert.ok(shipped.templates[primaryTemplate(shipped)]);
+  }
 });

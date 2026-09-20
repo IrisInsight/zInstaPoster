@@ -23,7 +23,7 @@ import {
   TransitionError,
   type Actor,
 } from "./state-machine";
-import { MAX_CAROUSEL_ITEMS, MIN_CAROUSEL_ITEMS } from "@/lib/instagram/publish";
+import { MAX_CAROUSEL_ITEMS, MIN_MEDIA_ITEMS } from "@/lib/instagram/publish";
 
 export interface PostWithSlides {
   post: Post;
@@ -401,9 +401,9 @@ export async function reorderSlides(input: {
   ) {
     throw new Error("The new slide order does not match this post's slides.");
   }
-  if (input.order.length < MIN_CAROUSEL_ITEMS || input.order.length > MAX_CAROUSEL_ITEMS) {
+  if (input.order.length < MIN_MEDIA_ITEMS || input.order.length > MAX_CAROUSEL_ITEMS) {
     throw new Error(
-      `A carousel must have between ${MIN_CAROUSEL_ITEMS} and ${MAX_CAROUSEL_ITEMS} slides.`,
+      `A post must have between ${MIN_MEDIA_ITEMS} and ${MAX_CAROUSEL_ITEMS} slides.`,
     );
   }
 
@@ -458,9 +458,9 @@ export async function deleteSlide(input: {
   if (!rows.some((row) => row.id === input.slideId)) {
     throw new Error("That slide does not belong to this post.");
   }
-  if (rows.length - 1 < MIN_CAROUSEL_ITEMS) {
+  if (rows.length - 1 < MIN_MEDIA_ITEMS) {
     throw new Error(
-      `A carousel needs at least ${MIN_CAROUSEL_ITEMS} slides. Delete the post instead.`,
+      `A post needs at least ${MIN_MEDIA_ITEMS} slide. Delete the post instead.`,
     );
   }
 
@@ -524,6 +524,7 @@ export async function regenerateSlidePhoto(input: {
     slideId: string;
     position: number;
     prompt: string;
+    slideType: string;
     templateName: string;
   }) => Promise<string>;
 }): Promise<{ photoUrl: string; approvalWithdrawn: boolean }> {
@@ -557,6 +558,7 @@ export async function regenerateSlidePhoto(input: {
     slideId: input.slideId,
     position: target.position,
     prompt: input.prompt,
+    slideType: target.type,
     templateName: current.template,
   });
   if (!input.generate) {

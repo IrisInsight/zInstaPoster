@@ -93,10 +93,10 @@ export function SlideEditor({
               </MoveButton>
               <button
                 type="button"
-                disabled={slides.length <= 2 || pending}
+                disabled={slides.length <= 1 || pending}
                 title={
-                  slides.length <= 2
-                    ? "A carousel needs at least 2 slides"
+                  slides.length <= 1
+                    ? "A post needs at least one slide"
                     : "Delete this slide"
                 }
                 onClick={() =>
@@ -315,7 +315,16 @@ function CopyFields({
   onChange: (key: string, value: unknown) => void;
   disabled: boolean;
 }) {
-  const scalarKeys = ["kicker", "headline", "script_line", "sub", "body", "disclaimer"];
+  const scalarKeys = [
+    "kicker",
+    "headline",
+    "statement",
+    "script_line",
+    "sub",
+    "body",
+    "attribution",
+    "disclaimer",
+  ];
   return (
     <div className="space-y-2.5">
       {scalarKeys

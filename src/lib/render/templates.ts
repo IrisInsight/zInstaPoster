@@ -1,6 +1,6 @@
-import { fontFaceCss, FONT_FAMILIES } from "./fonts";
+import { fontFaceCss, FONT_FAMILIES, SCRIPT_STYLE } from "./fonts";
 import type { RenderRequest, SlideType } from "./types";
-import type { BrandTokens, TenantConfig } from "@/lib/tenants";
+import { photoSlotFor, type BrandTokens, type TenantConfig } from "@/lib/tenants";
 
 /**
  * Slide markup.
@@ -37,6 +37,15 @@ interface Palette {
   navyRule: string;
 }
 
+interface SlideContext {
+  copy: Record<string, unknown>;
+  photoUrl?: string | null;
+  tenant: TenantConfig;
+  p: Palette;
+  /** The template the slide belongs to — it decides photo slots and labels. */
+  template?: string;
+}
+
 function palette(tokens: BrandTokens): Palette {
   return {
     navy: color(tokens, "navy", "#17395C"),
@@ -53,6 +62,49 @@ function palette(tokens: BrandTokens): Palette {
     navyFooter: color(tokens, "navy_footer", "#A8BACA"),
     navyRule: color(tokens, "navy_rule", "#2E5175"),
   };
+}
+
+/** A brand colour at an alpha, for scrims over photography. */
+function rgba(hex: string, alpha: number): string {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) return `rgba(0,0,0,${alpha})`;
+  const int = parseInt(match[1], 16);
+  return `rgba(${(int >> 16) & 255},${(int >> 8) & 255},${int & 255},${alpha})`;
+}
+
+/**
+ * A slide's fixed label — the word the template puts on the slide rather than
+ * anything the copy model writes. Tenant config can override it per slide.
+ */
+function slideLabel(
+  tenant: TenantConfig,
+  template: string | undefined,
+  type: string,
+  fallback: string,
+): string {
+  const label = template
+    ? tenant.templates?.[template]?.slide_specs?.[type]?.label
+    : undefined;
+  return label ?? fallback;
+}
+
+/**
+ * The photo, or the field it will land in. On a full-bleed slot the
+ * placeholder label sits high, clear of the copy the scrim sits under.
+ */
+function photoBlock(
+  photoUrl: string | null | undefined,
+  p: Palette,
+  align: "center" | "top" = "center",
+): string {
+  if (photoUrl) {
+    return `<img src="${escapeHtml(photoUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`;
+  }
+  const placement =
+    align === "top" ? "align-items:flex-start;padding-top:150px;" : "align-items:center;";
+  return `<div style="width:100%;height:100%;display:flex;${placement}justify-content:center;box-sizing:border-box;background:${p.sageTint};">
+         <div style="font-family:${FONT_FAMILIES.body};font-size:19px;letter-spacing:2px;text-transform:uppercase;color:${p.sage};">Photo pending</div>
+       </div>`;
 }
 
 function kickerBlock(text: string, p: Palette, onNavy = false): string {
@@ -80,22 +132,16 @@ function footerBlock(tenant: TenantConfig, p: Palette, onNavy = false): string {
 </div>`;
 }
 
-function hookSlide(copy: Record<string, unknown>, photoUrl: string | null | undefined, tenant: TenantConfig, p: Palette): string {
-  const slot = tenant.templates?.symptom_carousel?.slide_specs?.hook?.photo_slot ?? {
-    x: 0, y: 0, w: 1080, h: 560,
-  };
-  const photo = photoUrl
-    ? `<img src="${escapeHtml(photoUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`
-    : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:${p.sageTint};">
-         <div style="font-family:${FONT_FAMILIES.body};font-size:19px;letter-spacing:2px;text-transform:uppercase;color:${p.sage};">Photo pending</div>
-       </div>`;
+function hookSlide({ copy, photoUrl, tenant, p, template }: SlideContext): string {
+  const slot = photoSlotFor(template ? tenant.templates?.[template] : undefined, "hook");
+  const photo = photoBlock(photoUrl, p);
   return `<div class="slide" style="background:${p.cream};display:flex;flex-direction:column;">
   <div style="width:${slot.w}px;height:${slot.h}px;overflow:hidden;background:${p.sageTint};flex:0 0 auto;">${photo}</div>
   <div style="flex:1 1 auto;min-height:0;box-sizing:border-box;padding:60px 76px 58px;display:flex;flex-direction:column;justify-content:space-between;gap:24px;">
     <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:30px;min-height:0;">
       ${kickerBlock(String(copy.kicker ?? ""), p)}
       <h1 data-fit="86,46" style="margin:0;font-family:${FONT_FAMILIES.display};font-weight:600;font-size:86px;line-height:1.03;letter-spacing:-0.5px;color:${p.navy};">${escapeHtml(copy.headline)}</h1>
-      <p data-fit="48,28" style="margin:0;font-family:${FONT_FAMILIES.script};font-size:48px;line-height:1.3;color:${p.goldText};">${escapeHtml(copy.script_line)}</p>
+      <p data-fit="48,28" style="margin:0;font-family:${FONT_FAMILIES.script};${SCRIPT_STYLE}font-size:48px;line-height:1.3;color:${p.goldText};">${escapeHtml(copy.script_line)}</p>
     </div>
     <div style="display:flex;align-items:center;gap:14px;">
       <span style="font-size:16px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:${p.sage};">Swipe</span>
@@ -105,7 +151,7 @@ function hookSlide(copy: Record<string, unknown>, photoUrl: string | null | unde
 </div>`;
 }
 
-function causeSlide(copy: Record<string, unknown>, tenant: TenantConfig, p: Palette): string {
+function causeSlide({ copy, tenant, p }: SlideContext): string {
   const items = Array.isArray(copy.items)
     ? (copy.items as { label: string; text: string }[])
     : [];
@@ -135,7 +181,7 @@ ${cells}
 </div>`;
 }
 
-function protocolSlide(copy: Record<string, unknown>, tenant: TenantConfig, p: Palette): string {
+function protocolSlide({ copy, tenant, p }: SlideContext): string {
   const cards = Array.isArray(copy.cards)
     ? (copy.cards as { title: string; text: string }[])
     : [];
@@ -161,7 +207,7 @@ ${grid}
 </div>`;
 }
 
-function ctaSlide(copy: Record<string, unknown>, tenant: TenantConfig, p: Palette): string {
+function ctaSlide({ copy, tenant, p }: SlideContext): string {
   const points = Array.isArray(copy.trust_points)
     ? (copy.trust_points as string[])
     : [];
@@ -187,14 +233,83 @@ ${list}
 </div>`;
 }
 
-const RENDERERS: Record<
-  SlideType,
-  (copy: Record<string, unknown>, photoUrl: string | null | undefined, tenant: TenantConfig, p: Palette) => string
-> = {
-  hook: (copy, photoUrl, tenant, p) => hookSlide(copy, photoUrl, tenant, p),
-  cause: (copy, _photo, tenant, p) => causeSlide(copy, tenant, p),
-  protocol: (copy, _photo, tenant, p) => protocolSlide(copy, tenant, p),
-  cta: (copy, _photo, tenant, p) => ctaSlide(copy, tenant, p),
+/**
+ * Slide 1 of a myth buster. One statement, set as large as it will go, on a
+ * field of its own: no photo, no body copy, nothing else competing with it.
+ * That is the whole distinction from a symptom carousel's hook.
+ */
+function mythSlide({ copy, tenant, p, template }: SlideContext): string {
+  const label = slideLabel(tenant, template, "myth", "Myth");
+  const kicker = String(copy.kicker ?? "");
+  return `<div class="slide" style="background:${p.sageTint};box-sizing:border-box;padding:104px 88px 84px;display:flex;flex-direction:column;justify-content:space-between;gap:52px;">
+  <div class="kicker">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:24px;">
+      <span style="font-size:19px;font-weight:500;letter-spacing:5px;text-transform:uppercase;color:${p.goldText};">${escapeHtml(label)}</span>
+      ${kicker ? `<span style="font-size:16px;font-weight:400;letter-spacing:2.6px;text-transform:uppercase;color:${p.sage};">${escapeHtml(kicker)}</span>` : ""}
+    </div>
+    <div style="width:86px;height:2px;background:${p.gold};margin-top:24px;"></div>
+  </div>
+  <div class="grow" style="display:flex;flex-direction:column;justify-content:center;min-height:0;">
+    <h1 data-fit="116,54" style="margin:0;font-family:${FONT_FAMILIES.display};font-weight:600;font-size:116px;line-height:1.02;letter-spacing:-1.2px;color:${p.navy};">${escapeHtml(copy.headline)}</h1>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;">
+    <span style="font-size:16px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:${p.sage};">Swipe</span>
+    <svg width="40" height="10" viewBox="0 0 40 10" fill="none"><path d="M0 5h36M32 1l5 4-5 4" stroke="${p.sage}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+</div>`;
+}
+
+/** Slide 2: the correction, with room to explain why. Still type-led. */
+function correctionSlide({ copy, tenant, p, template }: SlideContext): string {
+  const label = slideLabel(tenant, template, "correction", "What is actually going on");
+  const disclaimer = String(copy.disclaimer ?? "");
+  return `<div class="slide" style="background:${p.cream};box-sizing:border-box;padding:96px 84px 66px;display:flex;flex-direction:column;justify-content:space-between;gap:44px;">
+  ${kickerBlock(label, p)}
+  <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:38px;min-height:0;">
+    <h1 data-fit="94,48" style="margin:0;font-family:${FONT_FAMILIES.display};font-weight:600;font-size:94px;line-height:1.05;letter-spacing:-0.7px;color:${p.navy};">${escapeHtml(copy.headline)}</h1>
+    <p data-fit="30,19" style="margin:0;font-size:30px;font-weight:400;line-height:1.5;color:${p.slate};max-width:840px;">${escapeHtml(copy.body)}</p>
+    ${disclaimer ? `<p data-fit="16,11" style="margin:0;font-size:16px;font-weight:400;line-height:1.5;color:${p.slate};">${escapeHtml(disclaimer)}</p>` : ""}
+  </div>
+  ${footerBlock(tenant, p)}
+</div>`;
+}
+
+/**
+ * The whole of a single card: one statement over a full-bleed photo. The scrim
+ * is what makes the type readable regardless of what the image model returns,
+ * so it is drawn from the navy token rather than left to the photograph.
+ */
+function statementSlide({ copy, photoUrl, tenant, p }: SlideContext): string {
+  const attribution = String(copy.attribution ?? "");
+  const disclaimer = String(copy.disclaimer ?? "");
+  const kicker = String(copy.kicker ?? "");
+  const scrim = `linear-gradient(180deg, ${rgba(p.navy, 0.18)} 0%, ${rgba(p.navy, 0.62)} 44%, ${rgba(p.navy, 0.92)} 100%)`;
+  // Every word sits in the bottom of the scrim, where the navy is close to
+  // solid. A label floating over the top of the photograph is legible right
+  // up until the image model returns a bright sky.
+  return `<div class="slide" style="background:${p.navy};position:relative;">
+  <div style="position:absolute;inset:0;">${photoBlock(photoUrl, p, "top")}</div>
+  <div style="position:absolute;inset:0;background:${scrim};"></div>
+  <div style="position:relative;height:100%;box-sizing:border-box;padding:86px 80px 70px;display:flex;flex-direction:column;justify-content:flex-end;gap:44px;">
+    <div class="grow" style="flex:1 1 auto;display:flex;flex-direction:column;justify-content:flex-end;gap:26px;min-height:0;">
+      ${kicker ? kickerBlock(kicker, p, true) : ""}
+      <p data-fit="86,44" style="margin:0;font-family:${FONT_FAMILIES.display};font-weight:600;font-size:86px;line-height:1.07;letter-spacing:-0.5px;color:${p.cream};">${escapeHtml(copy.statement)}</p>
+      ${attribution ? `<div style="font-size:19px;font-weight:500;letter-spacing:2.6px;text-transform:uppercase;color:${p.navySub};">${escapeHtml(attribution)}</div>` : ""}
+      ${disclaimer ? `<p data-fit="16,11" style="margin:0;font-size:16px;font-weight:400;line-height:1.5;color:${p.navySub};">${escapeHtml(disclaimer)}</p>` : ""}
+    </div>
+    ${footerBlock(tenant, p, true)}
+  </div>
+</div>`;
+}
+
+const RENDERERS: Record<SlideType, (context: SlideContext) => string> = {
+  hook: hookSlide,
+  cause: causeSlide,
+  protocol: protocolSlide,
+  cta: ctaSlide,
+  myth: mythSlide,
+  correction: correctionSlide,
+  statement: statementSlide,
 };
 
 /**
@@ -240,7 +355,13 @@ export async function slideHtml(request: RenderRequest): Promise<string> {
   const width = tenant.output?.width ?? 1080;
   const height = tenant.output?.height ?? 1350;
   const render = RENDERERS[slide.type] ?? RENDERERS.hook;
-  const body = render(slide.copy, slide.photoUrl, tenant, p);
+  const body = render({
+    copy: slide.copy,
+    photoUrl: slide.photoUrl,
+    tenant,
+    p,
+    template: slide.template,
+  });
   const fonts = await fontFaceCss();
 
   return `<!doctype html>

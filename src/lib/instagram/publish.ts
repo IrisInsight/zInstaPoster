@@ -21,9 +21,14 @@ import { decryptToken } from "./tokens";
  *   publish    POST /{ig-user-id}/media_publish  creation_id=…
  *   poll       GET  /{container-id}?fields=status_code
  *
+ * A one-slide post is not a carousel of one — Instagram rejects that — so it
+ * skips the children and publishes a single image container directly.
+ *
  * Containers expire after 24 hours, so none of this happens at approval time.
  */
 
+/** A post is one image, or a carousel of 2–10. There is nothing in between. */
+export const MIN_MEDIA_ITEMS = 1;
 export const MIN_CAROUSEL_ITEMS = 2;
 export const MAX_CAROUSEL_ITEMS = 10;
 export const MAX_CAPTION_CHARS = 2200;
@@ -69,9 +74,9 @@ export function assertPublishable(input: {
     );
   }
   const count = input.slides.length;
-  if (count < MIN_CAROUSEL_ITEMS || count > MAX_CAROUSEL_ITEMS) {
+  if (count < MIN_MEDIA_ITEMS || count > MAX_CAROUSEL_ITEMS) {
     throw new PublishError(
-      `A carousel needs between ${MIN_CAROUSEL_ITEMS} and ${MAX_CAROUSEL_ITEMS} slides; this post has ${count}.`,
+      `A post needs one slide, or between ${MIN_CAROUSEL_ITEMS} and ${MAX_CAROUSEL_ITEMS} for a carousel; this post has ${count}.`,
     );
   }
   if (input.post.caption.length > MAX_CAPTION_CHARS) {
@@ -161,7 +166,7 @@ export interface PublishInput {
   sleep?: Sleep;
 }
 
-export async function publishCarousel(
+export async function publishMedia(
   input: PublishInput,
 ): Promise<PublishResult> {
   const sleep = input.sleep ?? defaultSleep;
@@ -178,38 +183,50 @@ export async function publishCarousel(
   const accessToken = decryptToken(input.account);
   const igUserId = input.account.igUserId;
   const containerIds: string[] = [];
+  const single = ordered.length === 1;
 
   try {
-    // 1. One child container per slide.
-    for (const s of ordered) {
-      const child = await graphPost<{ id: string }>(`${igUserId}/media`, {
-        image_url: s.renderedUrl as string,
-        is_carousel_item: "true",
-        ...(s.altText ? { alt_text: s.altText } : {}),
+    if (single) {
+      // A single image carries the caption and alt text itself: there is no
+      // parent to hang them on.
+      const only = ordered[0];
+      const container = await graphPost<{ id: string }>(`${igUserId}/media`, {
+        image_url: only.renderedUrl as string,
+        caption: input.post.caption,
+        ...(only.altText ? { alt_text: only.altText } : {}),
         access_token: accessToken,
       });
-      containerIds.push(child.id);
+      containerIds.push(container.id);
+    } else {
+      // 1. One child container per slide.
+      for (const s of ordered) {
+        const child = await graphPost<{ id: string }>(`${igUserId}/media`, {
+          image_url: s.renderedUrl as string,
+          is_carousel_item: "true",
+          ...(s.altText ? { alt_text: s.altText } : {}),
+          access_token: accessToken,
+        });
+        containerIds.push(child.id);
+      }
+
+      // 2. The parent carousel container.
+      const parent = await graphPost<{ id: string }>(`${igUserId}/media`, {
+        media_type: "CAROUSEL",
+        children: containerIds.join(","),
+        caption: input.post.caption,
+        access_token: accessToken,
+      });
+      containerIds.push(parent.id);
     }
 
-    // 2. The parent carousel container.
-    const parent = await graphPost<{ id: string }>(`${igUserId}/media`, {
-      media_type: "CAROUSEL",
-      children: containerIds.join(","),
-      caption: input.post.caption,
-      access_token: accessToken,
-    });
-    containerIds.push(parent.id);
-
-    // 3. Wait for the parent to finish, then publish it.
-    await waitForContainer({
-      containerId: parent.id,
-      accessToken,
-      sleep,
-    });
+    // 3. Wait for the container we are about to publish — the parent of a
+    //    carousel, the image itself when there is only one — then publish it.
+    const creationId = containerIds[containerIds.length - 1];
+    await waitForContainer({ containerId: creationId, accessToken, sleep });
 
     const published = await graphPost<{ id: string }>(
       `${igUserId}/media_publish`,
-      { creation_id: parent.id, access_token: accessToken },
+      { creation_id: creationId, access_token: accessToken },
     );
 
     const permalink = await fetchPermalink(published.id, accessToken);
@@ -251,7 +268,7 @@ export async function waitForContainer(input: {
     if (status === "FINISHED" || status === "PUBLISHED") return status;
     if (status === "ERROR") {
       throw new PublishError(
-        `Instagram could not process the carousel: ${body.status ?? "ERROR"}`,
+        `Instagram could not process the post: ${body.status ?? "ERROR"}`,
         JSON.stringify(body),
       );
     }
@@ -264,7 +281,7 @@ export async function waitForContainer(input: {
     if (attempt < maxAttempts - 1) await sleep(POLL_INTERVAL_MS);
   }
   throw new PublishError(
-    `The carousel was still processing after ${maxAttempts} minutes.`,
+    `The post was still processing after ${maxAttempts} minutes.`,
   );
 }
 
@@ -366,7 +383,7 @@ export async function publishPostById(input: {
   });
 
   try {
-    const result = await publishCarousel({
+    const result = await publishMedia({
       post: current,
       account,
       slides,

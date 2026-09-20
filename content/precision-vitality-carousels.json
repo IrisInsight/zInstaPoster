@@ -432,6 +432,48 @@
         }
       ],
       "caption": "Brain fog gets treated as a mood problem more often than it should be.\n\nDysbiosis, a compromised gut barrier, malabsorbed B12 and iron, unstable blood sugar, lost deep sleep — all of it changes how the brain runs, and none of it shows up in a 15-minute med check.\n\nGut-brain medicine means testing the environment before adjusting the chemistry.\n\nComment FOG and I will send you what a GI-MAP actually tests for.\n\nFree 15-minute consult — link in bio. Telehealth across California, in-person in Yorba Linda.\n\nImages are models, not patients.\n\n#brainfog #gutbrain #guthealth #psychiatry #yorbalinda"
+    },
+    {
+      "slug": "testosterone-number",
+      "template": "myth_buster",
+      "kicker": "Men's Health",
+      "comment_keyword": "NUMBER",
+      "note": "Two slides: the consult card is optional on this template and this post does not need it.",
+      "slides": [
+        {
+          "position": 1,
+          "type": "myth",
+          "headline": "A normal testosterone number means the symptoms are not hormonal.",
+          "alt_text": "Myth: a normal testosterone number means the symptoms are not hormonal."
+        },
+        {
+          "position": 2,
+          "type": "correction",
+          "headline": "One number cannot rule out a hormonal cause.",
+          "body": "Total testosterone is a single value in a system. SHBG decides how much of it is free. Estradiol and thyroid change what the same total feels like. A total mid-range with high SHBG and low free testosterone is a different picture from the same total with both mid-range, and the two are told apart on a panel, not on one line of a result.",
+          "disclaimer": "",
+          "alt_text": "One number cannot rule out a hormonal cause."
+        }
+      ],
+      "caption": "A testosterone number in range does not rule out a hormonal cause.\n\nTotal testosterone is one value in a system. SHBG decides how much of it is free, estradiol and thyroid change what the symptoms look like, and fasting insulin moves all of it. A total mid-range with high SHBG and low free testosterone is a different picture from the same total with both mid-range.\n\nThat is why the panel comes before anyone talks about a protocol.\n\nComment NUMBER and I will send you the full list of what we test.\n\nFree 15-minute consult — link in bio. Telehealth across California, in-person in Yorba Linda.\n\n#menshealth #testosterone #hormonehealth #yorbalinda #functionalmedicine"
+    },
+    {
+      "slug": "start-with-data",
+      "template": "single_card",
+      "kicker": "Precision Medicine",
+      "comment_keyword": "DATA",
+      "slides": [
+        {
+          "position": 1,
+          "type": "statement",
+          "statement": "Care that starts with a product is a guess. Care that starts with data is a plan.",
+          "attribution": "Precision Vitality · Yorba Linda",
+          "disclaimer": "",
+          "photo_prompt": "Man, 50s, seated beside a window in soft morning light, plain charcoal shirt, looking out of frame. Quiet neutral room, nothing in the lower half of the frame.",
+          "alt_text": "Precision Medicine: care that starts with a product is a guess. Care that starts with data is a plan."
+        }
+      ],
+      "caption": "Every plan here starts the same way: with a panel, not a product.\n\nLabs first, then the protocol the labs point at. It is why the first conversation is about what to measure rather than what to prescribe.\n\nComment DATA and I will send you the panel we run before we recommend anything.\n\nFree 15-minute consult — link in bio. Telehealth across California, in-person in Yorba Linda.\n\nImages are models, not patients.\n\n#precisionmedicine #functionalmedicine #labwork #yorbalinda #rootcause"
     }
   ]
 }
