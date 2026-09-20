@@ -49,7 +49,7 @@ export const mythCopySchema = z.object({
   headline: z
     .string()
     .describe(
-      "The myth, stated plainly and in full, as someone would actually say it. No quotation marks, no 'myth:' prefix — the slide prints the label itself. Avoid the banned outcome words even when quoting a claim: the compliance checker cannot tell a claim you are repeating from one you are making.",
+      "The myth, stated plainly and in full, as someone would actually say it. No quotation marks, no 'myth:' prefix — the slide sets it in quotation marks under its own MYTH label. Avoid the banned outcome words even when quoting a claim: the compliance checker cannot tell a claim you are repeating from one you are making.",
     ),
 });
 
@@ -126,7 +126,7 @@ function slideVariant(type: string) {
     alt_text: z
       .string()
       .describe(
-        "Describes what is on the slide for a screen reader. Max 1000 characters.",
+        "Describes what is on the slide for a screen reader. Max 1000 characters. When the slide marks the copy rather than asserting it — a myth, set in quotation marks under its label — mark it here too, so the myth is not read out as the practice's position.",
       ),
     copy: copySchema,
   });
