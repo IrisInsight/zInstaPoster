@@ -78,7 +78,7 @@
       },
       {
         "id": "no-outcome-claims",
-        "test": "copy asserts a specific health outcome rather than a mechanism",
+        "test": "copy asserts a specific health outcome — a banned verb performed on something — rather than a mechanism. Clinical terms of art that contain one of those verbs, such as reverse T3, are listed in allow_terms and are not claims.",
         "reason": "FTC Health Products Compliance Guidance requires competent and reliable scientific evidence, generally RCT-grade, for health-benefit claims. Use 'may support <mechanism>', never 'erases/cures/fixes'.",
         "allowed_phrasing": [
           "may support",
@@ -97,20 +97,26 @@
         "check": "banned_phrases",
         "params": {
           "phrases": [
+            "guaranteed",
+            "guarantee",
+            "proven to",
+            "clinically proven"
+          ],
+          "claim_verbs": [
             "erases",
             "erase",
             "cures",
             "cure",
             "eliminates",
             "eliminate",
-            "guaranteed",
-            "guarantee",
             "reverses",
             "reverse",
             "fixes",
-            "fix",
-            "proven to",
-            "clinically proven"
+            "fix"
+          ],
+          "allow_terms": [
+            "reverse T3",
+            "rT3"
           ],
           "except_patterns": [
             "\\b(?:is|are|was|were|be) not guaranteed\\b",
@@ -258,16 +264,21 @@
       },
       {
         "id": "scope-check-female-hormones",
-        "test": "copy implies female hormone replacement therapy",
-        "reason": "Practice lists male hormone optimization only. Confirm scope before publishing.",
+        "test": "copy offers female hormone replacement therapy — the therapy named, prescribed, or a menopause service — rather than naming a female hormone as a mechanism or a lab value",
+        "reason": "Practice lists male hormone optimization only. Confirm scope before publishing. Naming estradiol or progesterone as a mechanism, or on a panel, is not an offer of therapy, and the practice's own bioidentical work is in scope.",
         "check": "pattern_match",
         "params": {
           "patterns": [
-            "\\b(?:estradiol|estrogen|progesterone|perimenopaus\\w*|menopaus\\w*|HRT)\\b",
-            "\\bfemale hormone (?:therapy|replacement)\\b"
+            "\\bHRT\\b",
+            "\\b(?:female|women'?s|menopausal) hormone (?:therapy|replacement|optimi[sz]ation)\\b",
+            "\\bbioidentical (?:estrogen|estradiol|progesterone|estriol)\\b",
+            "\\b(?:estrogen|estradiol|progesterone|estriol)\\b[^.\\n]{0,32}\\b(?:therapy|replacement|prescription|pellets?|troche|cream|patch|dosing|dose|regimen)\\b",
+            "\\b(?:prescrib\\w+|replac\\w+|titrat\\w+|refill\\w*|dose|dosing)\\b[^.\\n]{0,32}\\b(?:estrogen|estradiol|progesterone|estriol)\\b",
+            "\\b(?:peri)?menopaus\\w*\\b[^.\\n]{0,32}\\b(?:therapy|treatment|program|protocol|care|clinic|specialist|management)\\b",
+            "\\b(?:therapy|treatment|program|protocol|clinic|specialist|management)\\b[^.\\n]{0,32}\\b(?:peri)?menopaus\\w*\\b"
           ]
         },
-        "fix": "Confirm the practice's published scope covers this before publishing."
+        "fix": "Confirm the practice's published scope covers offering this before publishing, or rewrite it as the mechanism it is."
       },
       {
         "id": "caption-comment-keyword-cta",
@@ -409,7 +420,7 @@
             "swipe_affordance"
           ],
           "headline_max_words": 12,
-          "rule": "State the myth plainly, the way a patient says it out loud. Nothing else on the slide — the statement is the design. Never use a banned outcome word, even inside a myth you are about to correct: the checker cannot tell a claim being quoted from one being made."
+          "rule": "State the myth plainly, the way a patient says it out loud. Nothing else on the slide — the statement is the design. The slide sets it in quotation marks under a MYTH badge, so write the sentence and not the punctuation. Never use a banned outcome word, even inside a myth you are about to correct: the checker cannot tell a claim being quoted from one being made."
         },
         "correction": {
           "has_photo": false,

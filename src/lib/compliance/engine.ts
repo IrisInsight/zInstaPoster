@@ -96,9 +96,19 @@ export function rulesAsPromptGuidance(ruleSet: RuleSet): string {
     const detail: string[] = [];
     if (Array.isArray(params.phrases))
       detail.push(`never write: ${(params.phrases as string[]).join(", ")}`);
-    if (Array.isArray(params.allowed_phrasing))
+    if (Array.isArray(params.claim_verbs))
       detail.push(
-        `prefer: ${(params.allowed_phrasing as string[]).join(", ")}`,
+        `never claim: ${(params.claim_verbs as string[]).join(", ")}`,
+      );
+    // The exempt terms matter as much as the banned words: a model told only
+    // what it may not write will avoid naming a lab value it is free to name.
+    if (Array.isArray(params.allow_terms))
+      detail.push(
+        `these terms are fine: ${(params.allow_terms as string[]).join(", ")}`,
+      );
+    if (Array.isArray(r.allowed_phrasing))
+      detail.push(
+        `prefer: ${(r.allowed_phrasing as string[]).join(", ")}`,
       );
     if (typeof params.line === "string")
       detail.push(`required line: "${params.line}"`);

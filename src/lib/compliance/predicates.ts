@@ -20,10 +20,14 @@ function escape(value: string): string {
 /**
  * Case-insensitive literal match that respects word boundaries only where the
  * phrase actually starts/ends with a word character — so "from $" and "FDA-approved"
- * both behave.
+ * both behave. A phrase never matches inside a longer word: "reverse" is a hit
+ * on "reverse T3" and not on "reversed", and both are decided below.
+ *
+ * Runs of whitespace match any whitespace, because a phrase can straddle the
+ * line break between two pieces of slide copy.
  */
 function literalPattern(phrase: string): RegExp {
-  const body = escape(phrase);
+  const body = escape(phrase).replace(/\s+/g, "\\s+");
   const left = /^\w/.test(phrase) ? "\\b" : "";
   const right = /\w$/.test(phrase) ? "\\b" : "";
   return new RegExp(`${left}${body}${right}`, "gi");
@@ -135,28 +139,140 @@ function context(text: string, index: number, length: number, pad = 48): string 
   }`;
 }
 
-/** Any of `phrases` appears anywhere. */
+/**
+ * Spans of every `allow_terms` phrase in a region.
+ *
+ * A term of art can contain a banned word and mean something else entirely:
+ * "reverse T3" is a thyroid lab value, not a claim to reverse anything. A rule
+ * exempts it by naming the term, never by dropping the word — "reverse" stays
+ * banned everywhere the term is not.
+ */
+function allowedSpans(
+  params: Record<string, unknown> | undefined,
+  text: string,
+): { start: number; end: number }[] {
+  const spans: { start: number; end: number }[] = [];
+  for (const term of strings(params, "allow_terms")) {
+    const re = literalPattern(term);
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text))) {
+      spans.push({ start: match.index, end: match.index + match[0].length });
+      if (match.index === re.lastIndex) re.lastIndex++;
+    }
+  }
+  return spans;
+}
+
+function withinAllowed(
+  spans: { start: number; end: number }[],
+  index: number,
+  length: number,
+): boolean {
+  return spans.some((s) => index >= s.start && index + length <= s.end);
+}
+
+function token(word: string): string {
+  return word.toLowerCase().replace(/[’']/g, "");
+}
+
+/**
+ * A verb immediately after one of these is a noun or an adverbial, not a claim:
+ * "a cure", "no fix", "in reverse". Negations sit here too — "does not cure"
+ * is a disclaimer, not a promise. Determiners that can open an object are
+ * deliberately absent: "this cures fatigue" is a claim.
+ */
+const NOT_A_CLAIM_BEFORE = new Set([
+  "a", "an", "the", "no", "any", "each", "every", "one", "another", "other",
+  "nothing", "none", "neither",
+  "in", "into", "of", "on", "at", "by", "for", "with", "without", "from", "about",
+  "not", "never", "cannot", "cant", "wont", "doesnt", "dont", "isnt", "arent",
+]);
+
+/**
+ * A verb followed by one of these has no object, so nothing is being claimed:
+ * "no cure for that", "the fix is simple", "eliminate or reduce" on its own.
+ */
+const NOT_AN_OBJECT = new Set([
+  "about", "above", "across", "after", "against", "among", "around", "as", "at",
+  "before", "behind", "below", "beneath", "beside", "between", "beyond", "by",
+  "during", "except", "for", "from", "in", "inside", "into", "near", "of", "off",
+  "on", "onto", "out", "outside", "over", "past", "since", "through", "to",
+  "toward", "towards", "under", "until", "up", "upon", "via", "with", "within",
+  "without",
+  "and", "or", "nor", "but", "because", "if", "when", "while", "so", "then",
+  "is", "are", "was", "were", "am", "be", "been", "being", "has", "have", "had",
+  "will", "would", "shall", "should", "can", "could", "may", "might", "must",
+  "do", "does", "did",
+]);
+
+/**
+ * Is this hit in claim position — a verb the practice is performing on
+ * something — rather than a word sitting inside a noun phrase?
+ *
+ *   "reverses hair loss"        claim
+ *   "there is no cure for it"   not a claim
+ *   "the fix is simple"         not a claim
+ *   "it does not cure anything" not a claim
+ *
+ * It reads one token either side of the hit and nothing more, so a term of art
+ * that is shaped like a claim — "reverse T3" reads as a verb and its object —
+ * is exempted by `allow_terms` rather than here. A word that has to be banned
+ * wherever it appears belongs in `phrases`, which does not ask.
+ */
+function inClaimPosition(text: string, index: number, length: number): boolean {
+  const before = /([A-Za-z][A-Za-z’'-]*)[^\S\n]*$/.exec(text.slice(0, index));
+  if (before && NOT_A_CLAIM_BEFORE.has(token(before[1]))) return false;
+
+  // The object has to be on the same line: a verb ending a headline is not
+  // performing anything on the copy underneath it. A comma may separate them,
+  // so a list of verbs — "erases, smooths, lifts fine lines" — still reads.
+  const after = /^[^\S\n]*,?[^\S\n]*([A-Za-z][\w’'-]*)/.exec(
+    text.slice(index + length),
+  );
+  if (!after) return false;
+  return !NOT_AN_OBJECT.has(token(after[1]));
+}
+
+/**
+ * Any of `phrases` appears anywhere, and any of `claim_verbs` appears in claim
+ * position. Both skip hits that fall inside an `allow_terms` term.
+ *
+ * The split is what separates a word that is always wrong from a word that is
+ * only wrong as a promise: "clinically proven" is never sayable, while
+ * "reverse" is half of a lab value the practice has to be able to name.
+ */
 const bannedPhrases: Predicate = (ctx) => {
-  const phrases = strings(ctx.rule.params, "phrases");
+  const anywhere = strings(ctx.rule.params, "phrases").map(
+    (phrase) => ({ phrase, claimOnly: false }),
+  );
+  const asClaim = strings(ctx.rule.params, "claim_verbs").map(
+    (phrase) => ({ phrase, claimOnly: true }),
+  );
   const findings: Finding[] = [];
   for (const region of regions(ctx)) {
-    for (const phrase of phrases) {
+    const allowed = allowedSpans(ctx.rule.params, region.text);
+    for (const { phrase, claimOnly } of [...anywhere, ...asClaim]) {
       const re = literalPattern(phrase);
       let match: RegExpExecArray | null;
       while ((match = re.exec(region.text))) {
-        if (
-          !suppressed(ctx.rule.params, region.text, match.index, match[0].length)
-        ) {
-          findings.push(
-            finding(
-              ctx,
-              region.location,
-              `“${match[0]}” appears in ${region.location.label.toLowerCase()}.`,
-              context(region.text, match.index, match[0].length),
-            ),
-          );
-        }
-        if (match.index === re.lastIndex) re.lastIndex++;
+        const index = match.index;
+        const length = match[0].length;
+        if (index === re.lastIndex) re.lastIndex++;
+
+        if (withinAllowed(allowed, index, length)) continue;
+        if (claimOnly && !inClaimPosition(region.text, index, length)) continue;
+        if (suppressed(ctx.rule.params, region.text, index, length)) continue;
+
+        findings.push(
+          finding(
+            ctx,
+            region.location,
+            claimOnly
+              ? `“${match[0]}” is claimed as an outcome in ${region.location.label.toLowerCase()}.`
+              : `“${match[0]}” appears in ${region.location.label.toLowerCase()}.`,
+            context(region.text, index, length),
+          ),
+        );
       }
     }
   }

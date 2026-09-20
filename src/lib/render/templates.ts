@@ -107,6 +107,17 @@ function photoBlock(
        </div>`;
 }
 
+/**
+ * Copy set as reported speech. The model is told to write the myth as a
+ * sentence and not to punctuate it as a quotation, but a sentence that arrives
+ * already quoted must not come out double-quoted, so whatever it arrives in is
+ * replaced with the one pair the slide sets.
+ */
+function quoted(value: unknown): string {
+  const text = String(value ?? "").trim().replace(/^["“”‘’']+|["“”‘’']+$/g, "").trim();
+  return text ? `“${text}”` : "";
+}
+
 function kickerBlock(text: string, p: Palette, onNavy = false): string {
   const fg = onNavy ? p.goldLight : p.sage;
   const rule = onNavy ? p.goldLight : p.gold;
@@ -234,23 +245,26 @@ ${list}
 }
 
 /**
- * Slide 1 of a myth buster. One statement, set as large as it will go, on a
- * field of its own: no photo, no body copy, nothing else competing with it.
- * That is the whole distinction from a symptom carousel's hook.
+ * Slide 1 of a myth buster: the line the reader has already been told, set as
+ * large as it will go on a field of its own — no photo, no body copy, nothing
+ * competing with it. That is the whole distinction from a symptom carousel's
+ * hook.
+ *
+ * It is also the slide most likely to be read on its own, so the statement is
+ * marked false before it is read: the label is a filled badge rather than a
+ * corner kicker, and the myth is quoted, as something patients are told. A
+ * scroller must not be able to take the line as the practice's position.
  */
 function mythSlide({ copy, tenant, p, template }: SlideContext): string {
   const label = slideLabel(tenant, template, "myth", "Myth");
   const kicker = String(copy.kicker ?? "");
-  return `<div class="slide" style="background:${p.sageTint};box-sizing:border-box;padding:104px 88px 84px;display:flex;flex-direction:column;justify-content:space-between;gap:52px;">
-  <div class="kicker">
-    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:24px;">
-      <span style="font-size:19px;font-weight:500;letter-spacing:5px;text-transform:uppercase;color:${p.goldText};">${escapeHtml(label)}</span>
-      ${kicker ? `<span style="font-size:16px;font-weight:400;letter-spacing:2.6px;text-transform:uppercase;color:${p.sage};">${escapeHtml(kicker)}</span>` : ""}
-    </div>
-    <div style="width:86px;height:2px;background:${p.gold};margin-top:24px;"></div>
+  return `<div class="slide" style="background:${p.sageTint};box-sizing:border-box;padding:84px 84px 74px;display:flex;flex-direction:column;gap:46px;">
+  <div class="kicker" style="display:flex;align-items:center;justify-content:space-between;gap:28px;">
+    <span style="background:${p.navy};color:${p.cream};padding:19px 34px 21px;border-radius:2px;font-size:31px;font-weight:600;line-height:1;letter-spacing:7px;text-transform:uppercase;">${escapeHtml(label)}</span>
+    ${kicker ? `<span style="font-size:17px;font-weight:400;letter-spacing:2.8px;text-transform:uppercase;color:${p.sage};">${escapeHtml(kicker)}</span>` : ""}
   </div>
   <div class="grow" style="display:flex;flex-direction:column;justify-content:center;min-height:0;">
-    <h1 data-fit="116,54" style="margin:0;font-family:${FONT_FAMILIES.display};font-weight:600;font-size:116px;line-height:1.02;letter-spacing:-1.2px;color:${p.navy};">${escapeHtml(copy.headline)}</h1>
+    <h1 data-fit="190,80" style="margin:0;font-family:${FONT_FAMILIES.display};font-weight:600;font-size:190px;line-height:1.02;letter-spacing:-1.4px;color:${p.navy};text-indent:-0.35em;">${escapeHtml(quoted(copy.headline))}</h1>
   </div>
   <div style="display:flex;align-items:center;gap:14px;">
     <span style="font-size:16px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:${p.sage};">Swipe</span>
@@ -259,16 +273,20 @@ function mythSlide({ copy, tenant, p, template }: SlideContext): string {
 </div>`;
 }
 
-/** Slide 2: the correction, with room to explain why. Still type-led. */
+/**
+ * Slide 2: the correction, with room to explain why. Still type-led, and sized
+ * to fill the frame rather than float in the middle of it — this is the slide
+ * that has to be readable at feed size.
+ */
 function correctionSlide({ copy, tenant, p, template }: SlideContext): string {
   const label = slideLabel(tenant, template, "correction", "What is actually going on");
   const disclaimer = String(copy.disclaimer ?? "");
-  return `<div class="slide" style="background:${p.cream};box-sizing:border-box;padding:96px 84px 66px;display:flex;flex-direction:column;justify-content:space-between;gap:44px;">
+  return `<div class="slide" style="background:${p.cream};box-sizing:border-box;padding:84px 84px 62px;display:flex;flex-direction:column;gap:40px;">
   ${kickerBlock(label, p)}
-  <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:38px;min-height:0;">
-    <h1 data-fit="94,48" style="margin:0;font-family:${FONT_FAMILIES.display};font-weight:600;font-size:94px;line-height:1.05;letter-spacing:-0.7px;color:${p.navy};">${escapeHtml(copy.headline)}</h1>
-    <p data-fit="30,19" style="margin:0;font-size:30px;font-weight:400;line-height:1.5;color:${p.slate};max-width:840px;">${escapeHtml(copy.body)}</p>
-    ${disclaimer ? `<p data-fit="16,11" style="margin:0;font-size:16px;font-weight:400;line-height:1.5;color:${p.slate};">${escapeHtml(disclaimer)}</p>` : ""}
+  <div class="grow" style="display:flex;flex-direction:column;justify-content:center;gap:40px;min-height:0;">
+    <h1 data-fit="118,58" style="margin:0;font-family:${FONT_FAMILIES.display};font-weight:600;font-size:118px;line-height:1.05;letter-spacing:-0.9px;color:${p.navy};">${escapeHtml(copy.headline)}</h1>
+    <p data-fit="40,25" style="margin:0;font-size:40px;font-weight:400;line-height:1.45;color:${p.slate};">${escapeHtml(copy.body)}</p>
+    ${disclaimer ? `<p data-fit="17,12" style="margin:0;font-size:17px;font-weight:400;line-height:1.5;color:${p.slate};">${escapeHtml(disclaimer)}</p>` : ""}
   </div>
   ${footerBlock(tenant, p)}
 </div>`;
@@ -315,37 +333,79 @@ const RENDERERS: Record<SlideType, (context: SlideContext) => string> = {
 /**
  * Shrink-to-fit. Generated copy varies in length; a headline that overflows
  * its box is the difference between a slide that ships and one that has to be
- * regenerated. Elements carry data-fit="max,min" in px.
+ * regenerated. Elements carry data-fit="max,min" in px, and the largest size
+ * that still fits wins — which is also what keeps a short headline filling the
+ * frame instead of floating in the middle of it.
  */
 const FIT_SCRIPT = `
 (function () {
-  function fits(el) {
-    return el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1;
-  }
-  function container(el) {
-    var host = el.closest('.grow') || el.parentElement;
-    return host;
-  }
-  document.querySelectorAll('[data-fit]').forEach(function (el) {
-    var spec = el.getAttribute('data-fit').split(',');
-    var max = parseFloat(spec[0]);
-    var min = parseFloat(spec[1]);
-    var host = container(el);
-    for (var size = max; size >= min; size -= 1) {
-      el.style.fontSize = size + 'px';
-      if (host.scrollHeight <= host.clientHeight + 1 && fits(el)) return;
+  /**
+   * Layout overflow, not ink overflow.
+   *
+   * Display type here is set tighter than its own line box (line-height 1.02),
+   * so a headline always reports a scrollHeight a few px past its clientHeight
+   * — its own descenders. Measuring that would call every size a failure and
+   * push every headline to its minimum. What matters is whether a child has
+   * escaped the column it has to sit in.
+   */
+  function overflows(box) {
+    var rect = box.getBoundingClientRect();
+    for (var i = 0; i < box.children.length; i++) {
+      var child = box.children[i].getBoundingClientRect();
+      if (child.top < rect.top - 1 || child.bottom > rect.bottom + 1) return true;
     }
-    el.style.fontSize = min + 'px';
+    return false;
+  }
+
+  function fit() {
+    document.querySelectorAll('[data-fit]').forEach(function (el) {
+      var spec = el.getAttribute('data-fit').split(',');
+      var max = parseFloat(spec[0]);
+      var min = parseFloat(spec[1]);
+      var box = el.closest('.grow') || el.parentElement;
+      // While fitting, a word wider than its line is an overflow rather than
+      // something to break: display sizes are large enough that "testosterone"
+      // can outgrow the column, and a size that snaps a clinical word in half
+      // is not a size that fits. The stylesheet's break-word comes back
+      // afterwards, so copy that cannot fit at any size still wraps instead of
+      // being clipped.
+      el.style.overflowWrap = 'normal';
+      for (var size = max; size >= min; size -= 1) {
+        el.style.fontSize = size + 'px';
+        if (!overflows(box) && el.scrollWidth <= el.clientWidth + 1) {
+          el.style.overflowWrap = '';
+          return;
+        }
+      }
+      el.style.overflowWrap = '';
+      el.style.fontSize = min + 'px';
+    });
+    // Last resort: if the growing column still overflows, tighten leading.
+    document.querySelectorAll('.grow').forEach(function (box) {
+      var tries = 0;
+      while (overflows(box) && tries < 8) {
+        box.style.gap = Math.max(8, (parseFloat(getComputedStyle(box).gap) || 24) - 4) + 'px';
+        tries++;
+      }
+    });
+  }
+
+  // Fit in the face the slide is actually set in. The fonts are embedded, but
+  // they still arrive after first layout, and a size measured against the
+  // fallback serif is a size chosen for a font that is not on the slide. The
+  // race is a floor, not a preference: a font that never resolves must not
+  // leave the slide unfitted forever.
+  var ready = document.fonts && document.fonts.ready
+    ? Promise.race([
+        document.fonts.ready,
+        new Promise(function (resolve) { setTimeout(resolve, 5000); }),
+      ])
+    : Promise.resolve();
+
+  ready.then(function () {
+    fit();
+    document.documentElement.setAttribute('data-fitted', 'true');
   });
-  // Last resort: if the growing column still overflows, tighten leading.
-  document.querySelectorAll('.grow').forEach(function (host) {
-    var tries = 0;
-    while (host.scrollHeight > host.clientHeight + 1 && tries < 8) {
-      host.style.gap = Math.max(8, (parseFloat(getComputedStyle(host).gap) || 24) - 4) + 'px';
-      tries++;
-    }
-  });
-  document.documentElement.setAttribute('data-fitted', 'true');
 })();
 `;
 
@@ -376,6 +436,7 @@ html,body{margin:0;padding:0;background:${p.cream};}
 body{font-family:${FONT_FAMILIES.body};-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision;}
 .slide{width:${width}px;height:${height}px;overflow:hidden;position:relative;}
 .kicker,.footer{flex:0 0 auto;}
+.grow{flex:1 1 auto;min-height:0;}
 h1,p{overflow-wrap:break-word;hyphens:none;}
 </style>
 </head>
