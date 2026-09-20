@@ -212,10 +212,34 @@ Publishing is one job at fire time, because containers expire after 24 hours:
 
 ```
 per slide  POST /{ig-user-id}/media   image_url=… is_carousel_item=true
+per slide  GET  /{child-id}?fields=status_code    (once a minute, 5 max)
 parent     POST /{ig-user-id}/media   media_type=CAROUSEL children=… caption=…
-poll       GET  /{container-id}?fields=status_code   (once a minute, 5 max)
+parent     GET  /{parent-id}?fields=status_code   (once a minute, 5 max)
 publish    POST /{ig-user-id}/media_publish   creation_id=…
 ```
+
+Creating a container only registers the request: Instagram then fetches the
+image, and until it has, the container is `IN_PROGRESS`. Publishing one that has
+not reached `FINISHED` is error 9007 / subcode 2207027, "The media is not ready
+for publishing" — so **every** container is polled, children included. Polling
+only the container being published is not enough: a carousel parent reports
+`FINISHED` as soon as it exists, while a child may still be downloading, which
+is why this only shows up under load. `ERROR` and `EXPIRED` are terminal and the
+post records Meta's own reason for them, naming the slide.
+
+A publish has a wall-clock budget (`PUBLISH_BUDGET_MS`, 8 minutes) on top of the
+per-container cap, because ten containers at five minutes each outlives the job
+that is running them — and a job killed mid-poll leaves the post parked in
+`publishing`. The flow gives up on its own terms first, so the post always lands
+in `failed` with a reason. The budget stays comfortably under both the publish
+route's `maxDuration` and the sweep's `STUCK_PUBLISHING_MS`; a sweep that failed
+a post still in flight would invite a retry alongside it.
+
+Post now and Retry run inside a server action, which the platform kills at a
+timeout we do not control, so they publish on a much shorter budget
+(`INTERACTIVE_PUBLISH_BUDGET_MS`): every container is checked once, and if
+Instagram is still processing, the post is handed to the background job instead
+of holding the request open for minutes.
 
 A one-slide post (the `single_card` template) is not a carousel of one — Instagram
 rejects that — so it skips the children and the parent: one image container
@@ -249,13 +273,20 @@ the endpoint list.
 ### The scheduler
 
 QStash fires one job at publish time. Vercel Cron is not used for publishing —
-its granularity is too coarse. It *is* used for the daily token refresh and an
-hourly sweep, where coarse is exactly right (`vercel.json`).
+its granularity is too coarse. It *is* used for the daily token refresh and for
+the sweep every ten minutes (`vercel.json`).
 
 Without `QSTASH_TOKEN` the local driver runs: in-process timers, restored on
 boot by `src/instrumentation.ts`, plus `/api/jobs/sweep` which publishes anything
 whose time has passed. Job endpoints accept either a verified QStash signature
 or the `CRON_SECRET` header.
+
+The sweep also clears posts parked in `publishing` by a job that died mid-flight,
+after `STUCK_PUBLISHING_MS`. That is the only path out of `publishing`, which is
+why it runs every ten minutes rather than hourly: a post's recovery should not
+wait most of an hour. It publishes due posts on a budget of its own and leaves
+anything it cannot start `scheduled` for the next run — failing a post because
+the sweep ran out of time would take it out of automation for a clock reason.
 
 ---
 

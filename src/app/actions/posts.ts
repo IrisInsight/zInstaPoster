@@ -19,7 +19,11 @@ import {
   updateSlideCopy,
 } from "@/lib/posts/service";
 import { renderPost } from "@/lib/content/pipeline";
-import { publishPostById } from "@/lib/instagram/publish";
+import {
+  INTERACTIVE_PUBLISH_BUDGET_MS,
+  publishPostById,
+} from "@/lib/instagram/publish";
+import { schedulePublish } from "@/lib/scheduler";
 import { getDb, igAccount as igAccountTable, post as postTable } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 import { fromLocalInputValue } from "@/lib/time";
@@ -245,6 +249,12 @@ export async function unscheduleAction(postId: string): Promise<ActionResult> {
  * Post now. Separate from Approve on purpose: approving is a judgement,
  * publishing is an action, and fusing them means someone ships a post while
  * skimming.
+ *
+ * This runs inside a server action, which the platform kills at a timeout we
+ * do not control — and a publish killed mid-flight is what leaves a post
+ * parked in `publishing`. So it publishes on a short budget, and if Instagram
+ * is still processing the images when that runs out, the post is handed to the
+ * background job, which has the whole budget to wait it out.
  */
 export async function publishNowAction(postId: string): Promise<ActionResult> {
   try {
@@ -255,7 +265,13 @@ export async function publishNowAction(postId: string): Promise<ActionResult> {
     const result = await publishPostById({
       postId,
       actorLabel: actorFor(user).label,
+      budgetMs: INTERACTIVE_PUBLISH_BUDGET_MS,
     });
+    if (result.status === "failed" && result.stillProcessing) {
+      const handed = await handOffToScheduler(postId);
+      refresh(postId);
+      return handed;
+    }
     refresh(postId);
     if (result.status === "failed") {
       return { ok: false, error: result.error ?? "Publishing failed." };
@@ -263,6 +279,29 @@ export async function publishNowAction(postId: string): Promise<ActionResult> {
     return { ok: true, message: "Published." };
   } catch (error) {
     return fail(error);
+  }
+}
+
+/**
+ * Nothing was published and the post is sitting in `failed`, which the publish
+ * flow accepts as a starting point — so the same publish can be run again by
+ * the job, off the request. If queueing itself fails, say so plainly: the post
+ * is still retryable by hand.
+ */
+async function handOffToScheduler(postId: string): Promise<ActionResult> {
+  try {
+    await schedulePublish({ postId, at: new Date() });
+    return {
+      ok: true,
+      message:
+        "Instagram is still processing the images. This post will publish as soon as they are ready.",
+    };
+  } catch {
+    return {
+      ok: false,
+      error:
+        "Instagram is still processing the images, and the publish could not be queued. Nothing was published — press Retry in a minute.",
+    };
   }
 }
 

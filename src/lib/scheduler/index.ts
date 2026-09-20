@@ -17,10 +17,28 @@ export type SchedulerDriver = "qstash" | "local";
 
 /**
  * How long a post may sit in `publishing` before the sweep calls it failed.
- * The publish flow polls the container for up to five minutes, so this has to
- * be comfortably longer than that.
+ *
+ * Has to stay comfortably longer than PUBLISH_BUDGET_MS, the longest a live
+ * publish can run: a sweep that failed a post still in flight would invite a
+ * retry alongside it, and that is how a carousel goes out twice.
  */
 export const STUCK_PUBLISHING_MS = 20 * 60 * 1000;
+
+/**
+ * How long one sweep may spend publishing before it leaves the rest to the
+ * next run. The sweep is a safety net that can find several due posts at once,
+ * and a sweep killed mid-publish parks that post in `publishing` — the exact
+ * state it exists to clear.
+ */
+export const SWEEP_PUBLISH_BUDGET_MS = 8 * 60 * 1000;
+
+/**
+ * Below this, a due post waits for the next sweep instead of being published
+ * against a stopwatch: a publish that runs out of time marks the post failed,
+ * and that takes a scheduled post out of automation for a clock reason rather
+ * than a real one.
+ */
+const MIN_PUBLISH_SLICE_MS = 2 * 60 * 1000;
 
 export function schedulerDriver(): SchedulerDriver {
   return env.qstashToken ? "qstash" : "local";
@@ -104,9 +122,10 @@ async function runLocalPublish(postId: string): Promise<void> {
  * Publishes everything whose scheduled time has passed. Idempotent: a post
  * already publishing or published is skipped.
  */
-export async function sweepDuePosts(now = new Date()): Promise<
-  { postId: string; status: string; error?: string }[]
-> {
+export async function sweepDuePosts(
+  now = new Date(),
+  options: { budgetMs?: number } = {},
+): Promise<{ postId: string; status: string; error?: string }[]> {
   const { and, eq, lt, lte } = await import("drizzle-orm");
   const { getDb, post } = await import("@/lib/db");
   const { publishPostById } = await import("@/lib/instagram/publish");
@@ -134,11 +153,20 @@ export async function sweepDuePosts(now = new Date()): Promise<
   const results: { postId: string; status: string; error?: string }[] = stuck.map(
     (row) => ({ postId: row.id, status: "stuck-marked-failed" }),
   );
+  const deadline =
+    Date.now() + (options.budgetMs ?? SWEEP_PUBLISH_BUDGET_MS);
   for (const row of due) {
+    const budgetMs = deadline - Date.now();
+    if (budgetMs < MIN_PUBLISH_SLICE_MS) {
+      // Still `scheduled`, so the next sweep picks it up with a full slice.
+      results.push({ postId: row.id, status: "deferred" });
+      continue;
+    }
     try {
       const outcome = await publishPostById({
         postId: row.id,
         actorLabel: "scheduler (sweep)",
+        budgetMs,
       });
       results.push({ postId: row.id, status: outcome.status, error: outcome.error });
     } catch (error) {

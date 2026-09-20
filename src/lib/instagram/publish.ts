@@ -17,9 +17,17 @@ import { decryptToken } from "./tokens";
  * The publish flow, run as ONE job at fire time:
  *
  *   per slide  POST /{ig-user-id}/media   image_url=… is_carousel_item=true
+ *   per slide  GET  /{child-id}?fields=status_code   until FINISHED
  *   parent     POST /{ig-user-id}/media   media_type=CAROUSEL children=…
+ *   parent     GET  /{parent-id}?fields=status_code  until FINISHED
  *   publish    POST /{ig-user-id}/media_publish  creation_id=…
- *   poll       GET  /{container-id}?fields=status_code
+ *
+ * Creating a container only registers the request: Instagram then fetches the
+ * image, and until it has, the container is IN_PROGRESS. Publishing one that
+ * has not reached FINISHED fails with 9007 / 2207027, "The media is not ready
+ * for publishing" — so every container is polled, children included. A parent
+ * can report FINISHED while a child is still downloading, which is why polling
+ * only the container being published is not enough.
  *
  * A one-slide post is not a carousel of one — Instagram rejects that — so it
  * skips the children and publishes a single image container directly.
@@ -36,15 +44,50 @@ export const MAX_ALT_TEXT_CHARS = 1000;
 /** 100 published posts per rolling 24h per account. A carousel counts as one. */
 export const DAILY_PUBLISH_LIMIT = 100;
 
+/** Meta's own guidance for container polling: once a minute, up to five. */
 const POLL_INTERVAL_MS = 60_000;
 const POLL_MAX_ATTEMPTS = 5;
 
+/**
+ * Wall-clock budget for one publish, containers and all.
+ *
+ * Ten containers at five minutes each is fifty minutes, which is longer than
+ * the job's own lifetime: the platform would kill the function mid-poll and
+ * leave the post parked in `publishing` until the sweep found it. The flow
+ * gives up on its own terms first, so the post lands in `failed` with a reason
+ * a person can act on. It has to stay comfortably under both the publish
+ * route's maxDuration and the sweep's STUCK_PUBLISHING_MS.
+ */
+export const PUBLISH_BUDGET_MS = 8 * 60 * 1000;
+
+/**
+ * The budget for a publish a person is waiting on — Post now, or Retry.
+ *
+ * Those run inside a server action, which the platform kills at a timeout we
+ * do not control, and a kill is what parks a post in `publishing`. So an
+ * interactive publish checks every container once and, if Instagram is still
+ * processing, hands the post to the background job rather than holding the
+ * request open for minutes.
+ */
+export const INTERACTIVE_PUBLISH_BUDGET_MS = 50 * 1000;
+
 export class PublishError extends Error {
   readonly verbatim: string;
-  constructor(message: string, verbatim?: string) {
+  /**
+   * The containers were still processing when we ran out of time. Nothing was
+   * published and nothing is wrong with the post — the same publish, tried
+   * again, is expected to work.
+   */
+  readonly stillProcessing: boolean;
+  constructor(
+    message: string,
+    verbatim?: string,
+    options: { stillProcessing?: boolean } = {},
+  ) {
     super(message);
     this.name = "PublishError";
     this.verbatim = verbatim ?? message;
+    this.stillProcessing = options.stillProcessing ?? false;
   }
 }
 
@@ -164,6 +207,24 @@ export interface PublishInput {
     height: number;
   }[];
   sleep?: Sleep;
+  /** Wall-clock budget for the whole flow. Defaults to PUBLISH_BUDGET_MS. */
+  budgetMs?: number;
+  /** The clock the budget is measured on. Injectable so tests need not wait. */
+  now?: () => number;
+}
+
+/**
+ * Milliseconds left of the budget. Every wait in the flow asks this before it
+ * sleeps, so one slow container cannot spend the time the rest of the post
+ * needs.
+ */
+function budgetFrom(input: {
+  budgetMs?: number;
+  now?: () => number;
+}): () => number {
+  const clock = input.now ?? Date.now;
+  const end = clock() + (input.budgetMs ?? PUBLISH_BUDGET_MS);
+  return () => end - clock();
 }
 
 export async function publishMedia(
@@ -184,6 +245,9 @@ export async function publishMedia(
   const igUserId = input.account.igUserId;
   const containerIds: string[] = [];
   const single = ordered.length === 1;
+  const remaining = budgetFrom(input);
+  const wait = (containerId: string, label: string) =>
+    waitForContainer({ containerId, accessToken, sleep, remaining, label });
 
   try {
     if (single) {
@@ -197,8 +261,10 @@ export async function publishMedia(
         access_token: accessToken,
       });
       containerIds.push(container.id);
+      await wait(container.id, "The image");
     } else {
       // 1. One child container per slide.
+      const childIds: string[] = [];
       for (const s of ordered) {
         const child = await graphPost<{ id: string }>(`${igUserId}/media`, {
           image_url: s.renderedUrl as string,
@@ -206,36 +272,92 @@ export async function publishMedia(
           ...(s.altText ? { alt_text: s.altText } : {}),
           access_token: accessToken,
         });
+        childIds.push(child.id);
         containerIds.push(child.id);
       }
 
-      // 2. The parent carousel container.
+      // 2. Every child has to reach FINISHED before the parent can reference
+      //    it. Instagram fetches the images in parallel, so waiting on the
+      //    first child is usually waiting on all of them.
+      for (const [index, childId] of childIds.entries()) {
+        await wait(childId, `Slide ${ordered[index].position}`);
+      }
+
+      // 3. The parent carousel container, itself polled before it is
+      //    published: a parent reports FINISHED once it has been accepted,
+      //    which is not the same thing as being ready to publish.
       const parent = await graphPost<{ id: string }>(`${igUserId}/media`, {
         media_type: "CAROUSEL",
-        children: containerIds.join(","),
+        children: childIds.join(","),
         caption: input.post.caption,
         access_token: accessToken,
       });
       containerIds.push(parent.id);
+      await wait(parent.id, "The carousel");
     }
 
-    // 3. Wait for the container we are about to publish — the parent of a
-    //    carousel, the image itself when there is only one — then publish it.
+    // 4. Publish the container everything else was building towards.
     const creationId = containerIds[containerIds.length - 1];
-    await waitForContainer({ containerId: creationId, accessToken, sleep });
-
-    const published = await graphPost<{ id: string }>(
-      `${igUserId}/media_publish`,
-      { creation_id: creationId, access_token: accessToken },
-    );
+    const published = await publishContainer({
+      igUserId,
+      creationId,
+      accessToken,
+      sleep,
+      remaining,
+    });
 
     const permalink = await fetchPermalink(published.id, accessToken);
     return { mediaId: published.id, permalink, containerIds };
   } catch (error) {
     if (error instanceof InstagramApiError) {
-      throw new PublishError(error.message, error.verbatim);
+      // "The media is not ready" survived the retry above. Nothing was
+      // published and the post itself is fine, so it is worth another run.
+      throw new PublishError(error.message, error.verbatim, {
+        stillProcessing: error.isMediaNotReady,
+      });
     }
     throw error;
+  }
+}
+
+/**
+ * media_publish, with one retry for the one error that is worth retrying.
+ *
+ * Every container was polled to FINISHED before this is called, so 9007 /
+ * 2207027 should not happen — but Instagram's own view of a carousel is
+ * eventually consistent, and the error means nothing was published. Re-reading
+ * the container and trying once more costs a minute and turns the whole post
+ * from failed into published. Any other error is the caller's to report.
+ */
+async function publishContainer(input: {
+  igUserId: string;
+  creationId: string;
+  accessToken: string;
+  sleep: Sleep;
+  remaining: () => number;
+}): Promise<{ id: string }> {
+  try {
+    return await graphPost<{ id: string }>(`${input.igUserId}/media_publish`, {
+      creation_id: input.creationId,
+      access_token: input.accessToken,
+    });
+  } catch (error) {
+    const notReady =
+      error instanceof InstagramApiError && error.isMediaNotReady;
+    if (!notReady || input.remaining() <= POLL_INTERVAL_MS) throw error;
+
+    await input.sleep(POLL_INTERVAL_MS);
+    await waitForContainer({
+      containerId: input.creationId,
+      accessToken: input.accessToken,
+      sleep: input.sleep,
+      remaining: input.remaining,
+      label: "The post",
+    });
+    return graphPost<{ id: string }>(`${input.igUserId}/media_publish`, {
+      creation_id: input.creationId,
+      access_token: input.accessToken,
+    });
   }
 }
 
@@ -251,9 +373,15 @@ export async function waitForContainer(input: {
   accessToken: string;
   sleep?: Sleep;
   maxAttempts?: number;
+  /** Milliseconds left for the whole publish, when one is being tracked. */
+  remaining?: () => number;
+  /** What this container is, for an error a person has to act on. */
+  label?: string;
 }): Promise<ContainerStatus> {
   const sleep = input.sleep ?? defaultSleep;
   const maxAttempts = input.maxAttempts ?? POLL_MAX_ATTEMPTS;
+  const remaining = input.remaining ?? (() => Number.POSITIVE_INFINITY);
+  const what = input.label ?? "The media container";
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const body = await graphGet<{
@@ -267,21 +395,35 @@ export async function waitForContainer(input: {
 
     if (status === "FINISHED" || status === "PUBLISHED") return status;
     if (status === "ERROR") {
+      // Meta's `status` carries the reason — an unreachable image, a format it
+      // rejected. It is the only description of the failure there will be.
       throw new PublishError(
-        `Instagram could not process the post: ${body.status ?? "ERROR"}`,
+        `${what} could not be processed by Instagram: ${body.status ?? "ERROR"}`,
         JSON.stringify(body),
       );
     }
     if (status === "EXPIRED") {
       throw new PublishError(
-        "The media container expired before it could be published. Containers are only valid for 24 hours.",
+        `${what} expired before it could be published. Containers are only valid for 24 hours.`,
         JSON.stringify(body),
       );
     }
-    if (attempt < maxAttempts - 1) await sleep(POLL_INTERVAL_MS);
+    if (attempt < maxAttempts - 1) {
+      // Stop on our own terms while there is still time to record why.
+      if (remaining() <= POLL_INTERVAL_MS) {
+        throw new PublishError(
+          `${what} was still processing when this publish ran out of time. Nothing was published.`,
+          undefined,
+          { stillProcessing: true },
+        );
+      }
+      await sleep(POLL_INTERVAL_MS);
+    }
   }
   throw new PublishError(
-    `The post was still processing after ${maxAttempts} minutes.`,
+    `${what} was still processing after ${maxAttempts} minutes. Nothing was published.`,
+    undefined,
+    { stillProcessing: true },
   );
 }
 
@@ -308,7 +450,15 @@ export async function publishPostById(input: {
   postId: string;
   actorLabel: string;
   sleep?: Sleep;
-}): Promise<{ status: "published" | "failed"; mediaId?: string; error?: string }> {
+  budgetMs?: number;
+  now?: () => number;
+}): Promise<{
+  status: "published" | "failed";
+  mediaId?: string;
+  error?: string;
+  /** Instagram had not finished processing. Nothing was published. */
+  stillProcessing?: boolean;
+}> {
   const db = await getDb();
   const [current] = await db.select().from(post).where(eq(post.id, input.postId));
   if (!current) throw new PublishError(`No post ${input.postId}.`);
@@ -388,6 +538,8 @@ export async function publishPostById(input: {
       account,
       slides,
       sleep: input.sleep,
+      budgetMs: input.budgetMs,
+      now: input.now,
     });
 
     await db
@@ -424,12 +576,23 @@ export async function publishPostById(input: {
         : error instanceof InstagramApiError
           ? error.verbatim
           : String(error);
+    // A publish that ran out of time never called media_publish. The post is
+    // failed either way — nothing may sit in `publishing` once this returns —
+    // but the caller can tell "try again" from "this post is wrong".
+    const stillProcessing =
+      error instanceof PublishError && error.stillProcessing;
+    const message = error instanceof Error ? error.message : verbatim;
+    // What a person reads on the post: our sentence first, because Meta's body
+    // for an expired container is the single word EXPIRED, then Meta's own
+    // text, because that is the only record of what it objected to.
+    const reason =
+      verbatim === message ? message : `${message}\n\n${verbatim}`;
 
     await db
       .update(post)
       .set({
         status: "failed",
-        failureReason: verbatim.slice(0, 4000),
+        failureReason: reason.slice(0, 4000),
         updatedAt: new Date(),
       })
       .where(eq(post.id, current.id));
@@ -446,6 +609,6 @@ export async function publishPostById(input: {
       action: "post.publish_failed",
       payload: { error: verbatim.slice(0, 2000) },
     });
-    return { status: "failed", error: verbatim };
+    return { status: "failed", error: reason, stillProcessing };
   }
 }

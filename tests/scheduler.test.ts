@@ -7,9 +7,12 @@ await useTestDatabase();
 
 const { getDb, post, tenant } = await import("@/lib/db");
 const { splitTenantConfig } = await import("@/lib/tenants");
-const { sweepDuePosts, STUCK_PUBLISHING_MS, schedulerDriver } = await import(
-  "@/lib/scheduler"
-);
+const {
+  sweepDuePosts,
+  STUCK_PUBLISHING_MS,
+  SWEEP_PUBLISH_BUDGET_MS,
+  schedulerDriver,
+} = await import("@/lib/scheduler");
 
 const tenantConfig = JSON.parse(
   await readFile("tenants/precision-vitality.json", "utf8"),
@@ -79,4 +82,42 @@ test("a post that only just started publishing is left alone", async () => {
   await sweepDuePosts();
   const [after] = await db.select().from(post);
   assert.equal(after.status, "publishing", `${recent.id} should still be in flight`);
+});
+
+test("a sweep out of time leaves due posts scheduled rather than failing them", async () => {
+  // The sweep can find several due posts at once and each publish has its own
+  // budget. Spending the sweep's own lifetime on the first of them is how a
+  // post ends up parked in `publishing` — the state this endpoint exists to
+  // clear — so anything it cannot start stays `scheduled` for the next run.
+  const db = await getDb();
+  const id = await tenantId();
+  await db.delete(post);
+  for (const title of ["First", "Second"]) {
+    await db.insert(post).values({
+      tenantId: id,
+      status: "scheduled",
+      title,
+      caption: "x",
+      approvedBy: "Nurse P",
+      approvedAt: new Date(),
+      scheduledFor: new Date(Date.now() - 60_000),
+    });
+  }
+
+  const results = await sweepDuePosts(new Date(), { budgetMs: 0 });
+  assert.equal(results.length, 2);
+  assert.ok(
+    results.every((r) => r.status === "deferred"),
+    JSON.stringify(results),
+  );
+
+  const rows = await db.select().from(post);
+  assert.ok(
+    rows.every((r) => r.status === "scheduled"),
+    "a deferred post is still due, not failed",
+  );
+  assert.ok(
+    SWEEP_PUBLISH_BUDGET_MS < 10 * 60 * 1000,
+    "one sweep has to finish inside its own maxDuration",
+  );
 });

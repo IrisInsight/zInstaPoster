@@ -7,11 +7,15 @@
     },
     {
       "path": "/api/jobs/sweep",
-      "schedule": "0 * * * *"
+      "schedule": "*/10 * * * *"
     }
   ],
   "functions": {
-    "src/app/api/jobs/publish/route.ts": { "maxDuration": 600 },
-    "src/app/api/generate/route.ts": { "maxDuration": 300 }
+    "src/app/api/jobs/publish/route.ts": {
+      "maxDuration": 600
+    },
+    "src/app/api/generate/route.ts": {
+      "maxDuration": 300
+    }
   }
 }

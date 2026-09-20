@@ -68,6 +68,15 @@ export class InstagramApiError extends Error {
   get isRateLimit(): boolean {
     return this.status === 429 || this.code === 4 || this.code === 32 || this.code === 613;
   }
+
+  /**
+   * 9007 / 2207027 — "The media is not ready for publishing". media_publish
+   * reached a container that had not finished processing. Nothing was
+   * published, so the same creation_id can be published again.
+   */
+  get isMediaNotReady(): boolean {
+    return this.code === 9007 || this.subcode === 2207027;
+  }
 }
 
 async function parse(response: Response): Promise<unknown> {
