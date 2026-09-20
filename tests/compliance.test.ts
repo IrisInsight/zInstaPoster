@@ -20,6 +20,8 @@ function subjectFrom(carousel: any): ComplianceSubject {
       type: s.type,
       text: [
         s.headline,
+        s.statement,
+        s.attribution,
         s.script_line,
         s.sub,
         s.body,
@@ -121,6 +123,47 @@ test("deleting the protocol slide does not delete the disclaimer requirement", (
   const ids = report.findings.filter((f) => f.severity === "blocking").map((f) => f.ruleId);
   assert.ok(ids.includes("compounded-disclaimer-required"), ids.join(","));
   assert.equal(report.approvable, false);
+});
+
+test("the disclaimer requirement follows the template, not the protocol slide", () => {
+  // A myth buster has no protocol slide. The slide that carries the FDA
+  // disclaimer is the correction — naming a peptide without it still blocks,
+  // and the same post with it clears.
+  const carousel = structuredClone(
+    seeds.carousels.find((c: any) => c.template === "myth_buster"),
+  );
+  carousel.slides[1].body += " A compounded peptide may be part of that plan.";
+
+  const bare = evaluate(rules, subjectFrom(carousel));
+  const ids = bare.findings.filter((f) => f.severity === "blocking").map((f) => f.ruleId);
+  assert.ok(ids.includes("compounded-disclaimer-required"), ids.join(","));
+
+  carousel.slides[1].disclaimer = tenant.disclaimers.compounded;
+  const carried = evaluate(rules, subjectFrom(carousel));
+  assert.deepEqual(
+    carried.findings
+      .filter((f) => f.severity === "blocking")
+      .map((f) => `${f.ruleId}: ${f.message}`),
+    [],
+  );
+  assert.equal(carried.approvable, true);
+});
+
+test("a single card carries its own disclaimer", () => {
+  const carousel = structuredClone(
+    seeds.carousels.find((c: any) => c.template === "single_card"),
+  );
+  carousel.caption += "\n\nAsk about compounded peptide therapy.";
+
+  const bare = evaluate(rules, subjectFrom(carousel));
+  assert.ok(
+    bare.findings.some((f) => f.ruleId === "compounded-disclaimer-required"),
+    "one slide is still a slide that has to carry the disclaimer",
+  );
+
+  carousel.slides[0].disclaimer = tenant.disclaimers.compounded;
+  const carried = evaluate(rules, subjectFrom(carousel));
+  assert.equal(carried.approvable, true);
 });
 
 test("a rule that depends on case is matched with case", () => {

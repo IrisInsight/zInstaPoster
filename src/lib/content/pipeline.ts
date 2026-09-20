@@ -6,7 +6,7 @@ import { normalizeToJpeg } from "@/lib/render/raster";
 import { putObject } from "@/lib/storage";
 import { recordAudit, systemActor } from "@/lib/audit";
 import type { Actor } from "@/lib/posts/state-machine";
-import type { TenantConfig } from "@/lib/tenants";
+import { photoSlotFor, primaryTemplate, type TenantConfig } from "@/lib/tenants";
 import type { SlideType } from "@/lib/render/types";
 import { generateCarouselCopy } from "./claude";
 import { generatePhoto } from "./gemini";
@@ -27,6 +27,7 @@ export const PIPELINE_STEPS: { id: PipelineStep; label: string }[] = [
 
 export type PipelineEvent =
   | { type: "post"; postId: string }
+  | { type: "template"; name: string; slides: number }
   | { type: "step"; step: PipelineStep; status: "start" | "done"; detail?: string }
   | { type: "copy"; headline: string; position: number }
   | { type: "slide"; position: number; url: string }
@@ -35,13 +36,19 @@ export type PipelineEvent =
 
 export type Emit = (event: PipelineEvent) => void;
 
-/** Pulls headlines out of a partial JSON stream so the UI can show copy arriving. */
+/**
+ * Pulls headlines out of a partial JSON stream so the UI can show copy
+ * arriving. A single card has no headline — its one line is the statement —
+ * so both field names count as the slide's first line.
+ */
 export function createHeadlineTracker(emit: Emit) {
   let buffer = "";
   let seen = 0;
   return (delta: string) => {
     buffer += delta;
-    const matches = [...buffer.matchAll(/"headline"\s*:\s*"((?:[^"\\]|\\.)*)"/g)];
+    const matches = [
+      ...buffer.matchAll(/"(?:headline|statement)"\s*:\s*"((?:[^"\\]|\\.)*)"/g),
+    ];
     for (let i = seen; i < matches.length; i++) {
       const value = matches[i][1].replace(/\\"/g, '"').replace(/\\n/g, " ");
       emit({ type: "copy", headline: value, position: i + 1 });
@@ -105,12 +112,21 @@ export interface GenerateOptions {
 
 /**
  * Claude writes the copy → Gemini generates the photo → the renderer
- * composites → four slide URLs → compliance runs over the result.
+ * composites → one slide URL per slide → compliance runs over the result.
  */
 export async function generatePost(options: GenerateOptions): Promise<Post> {
   const emit: Emit = options.emit ?? (() => {});
   const db = await getDb();
 
+  // The template is resolved before this call, so the UI can lay out the right
+  // number of slide slots instead of four every time.
+  const declaredSlides =
+    options.tenant.templates?.[options.templateName]?.slides ?? 4;
+  emit({
+    type: "template",
+    name: options.templateName,
+    slides: declaredSlides,
+  });
   emit({ type: "step", step: "writing_copy", status: "start" });
   const carousel = await generateCarouselCopy({
     tenant: options.tenant,
@@ -126,6 +142,14 @@ export async function generatePost(options: GenerateOptions): Promise<Post> {
     status: "done",
     detail: `${carousel.slides.length} slides`,
   });
+  // A template with an optional tail can come back shorter than it declares.
+  if (carousel.slides.length !== declaredSlides) {
+    emit({
+      type: "template",
+      name: options.templateName,
+      slides: carousel.slides.length,
+    });
+  }
 
   const [created] = await db
     .insert(post)
@@ -206,7 +230,7 @@ export async function generatePost(options: GenerateOptions): Promise<Post> {
 export async function fillPhotos(input: {
   tenant: TenantConfig;
   postId: string;
-  slides: { id: string; position: number; photoPrompt: string | null }[];
+  slides: { id: string; position: number; type: string; photoPrompt: string | null }[];
   emit?: Emit;
 }): Promise<void> {
   const emit: Emit = input.emit ?? (() => {});
@@ -220,6 +244,7 @@ export async function fillPhotos(input: {
       postId: input.postId,
       slideId: row.id,
       position: row.position,
+      slideType: row.type,
       prompt: row.photoPrompt as string,
     });
   }
@@ -233,17 +258,20 @@ export async function generateSlidePhoto(input: {
   slideId: string;
   position: number;
   prompt: string;
+  /** The slide's type, so the photo is cropped to the slot that slide uses. */
+  slideType?: string;
   /** The post's template, so the photo is cropped to that template's slot. */
   templateName?: string;
 }): Promise<string> {
   const db = await getDb();
   const [current] = await db.select().from(post).where(eq(post.id, input.postId));
   const templateName =
-    input.templateName ??
-    current?.template ??
-    Object.keys(input.tenant.templates ?? {})[0];
-  const slot = input.tenant.templates?.[templateName]?.slide_specs?.hook
-    ?.photo_slot ?? { w: 1080, h: 560, x: 0, y: 0 };
+    input.templateName ?? current?.template ?? primaryTemplate(input.tenant);
+  const slideType =
+    input.slideType ??
+    (await db.select().from(slide).where(eq(slide.id, input.slideId)))[0]?.type ??
+    "hook";
+  const slot = photoSlotFor(input.tenant.templates?.[templateName], slideType);
 
   const photo = await generatePhoto({ prompt: input.prompt });
   const jpeg =
@@ -289,6 +317,7 @@ export async function renderPost(input: {
 }): Promise<void> {
   const emit: Emit = input.emit ?? (() => {});
   const db = await getDb();
+  const [current] = await db.select().from(post).where(eq(post.id, input.postId));
   const rows = await db
     .select()
     .from(slide)
@@ -309,6 +338,7 @@ export async function renderPost(input: {
         copy: row.copy as Record<string, unknown>,
         photoUrl: row.photoUrl,
         photoPrompt: row.photoPrompt,
+        template: current?.template ?? undefined,
       },
     });
 

@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { rulesAsPromptGuidance } from "@/lib/compliance/engine";
 import { env } from "@/lib/env";
-import type { TenantConfig } from "@/lib/tenants";
+import { minimumSlides, primaryTemplate, type TenantConfig } from "@/lib/tenants";
 import {
   assertMatchesTemplate,
   carouselSchemaFor,
@@ -30,22 +30,40 @@ function systemPrompt(tenant: TenantConfig, templateName: string): string {
   const specs = Object.entries(template.slide_specs)
     .map(([name, spec]) => {
       const bits = [`slide "${name}"`];
+      if (spec.optional) bits.push("optional — omit it unless it earns its place");
       if (spec.rule) bits.push(spec.rule);
       if (spec.items) bits.push(`${spec.items.min}–${spec.items.max} items`);
       if (spec.cards) bits.push(`exactly ${spec.cards.count} cards`);
       if (spec.headline_max_words)
         bits.push(`headline ≤ ${spec.headline_max_words} words`);
+      if (spec.label)
+        bits.push(`the slide prints the label "${spec.label}" itself — do not repeat it in the copy`);
       return `- ${bits.join(" — ")}`;
     })
     .join("\n");
 
+  // Which slide carries the legal text is a property of the template, not a
+  // constant: a myth buster has no protocol slide.
+  const disclaimerSlide =
+    template.structure.find((name) =>
+      template.slide_specs[name]?.elements?.includes("disclaimer"),
+    ) ?? template.structure[template.structure.length - 1];
+
+  const min = minimumSlides(template);
+  const max = template.structure.length;
+  const shape =
+    min === max
+      ? `${max} slides in order: ${template.structure.join(" → ")}`
+      : `${min}–${max} slides, in order: ${template.structure.join(" → ")}, stopping after any slide from ${min} on`;
+
   return [
-    `You write Instagram carousel copy for ${tenant.name}, a ${tenant.vertical} in ${tenant.footer?.contact ?? tenant.locale}.`,
+    `You write Instagram post copy for ${tenant.name}, a ${tenant.vertical} in ${tenant.footer?.contact ?? tenant.locale}.`,
     "",
     "Voice: plain, specific, clinical without being cold. Short sentences. No hype, no emoji, no exclamation marks.",
-    "Write about mechanisms, never outcomes. The reader should finish the carousel understanding why a symptom happens and what would be measured.",
+    "Write about mechanisms, never outcomes. The reader should finish the post understanding why something happens and what would be measured.",
     "",
-    `Template "${templateName}" — ${template.slides} slides in order: ${template.structure.join(" → ")}.`,
+    `Template "${templateName}" — ${shape}.`,
+    template.use_when ? `Use it for: ${template.use_when}` : "",
     specs,
     "",
     "Caption requirements:",
@@ -54,14 +72,14 @@ function systemPrompt(tenant: TenantConfig, templateName: string): string {
     "- Include a comment-keyword call to action using the keyword you chose.",
     "- Include the free 15-minute consult line.",
     tenant.disclaimers?.model
-      ? `- When the hook photo shows a person, include this line verbatim: "${tenant.disclaimers.model}"`
+      ? `- When a slide's photo shows a person, include this line verbatim: "${tenant.disclaimers.model}"`
       : "",
     "",
-    "Disclaimers — copy one of these verbatim onto the protocol slide. Never paraphrase them:",
+    `Disclaimers — copy one of these verbatim onto the ${disclaimerSlide} slide. Never paraphrase them:`,
     ...Object.entries(tenant.disclaimers ?? {}).map(
       ([key, value]) => `- ${key}: ${value}`,
     ),
-    "Use the compounded disclaimer whenever a compounded product, peptide or bioidentical hormone is named anywhere in the carousel; otherwise use the general one.",
+    "Use the compounded disclaimer whenever a compounded product, peptide or bioidentical hormone is named anywhere in the post; otherwise use the general one. Whether the slide may carry none is in that field's own description.",
     "",
     "Compliance rules. These are enforced in code after you write, and a violation blocks the post from reaching a human reviewer:",
     rulesAsPromptGuidance(tenant.compliance_rules),
@@ -84,19 +102,31 @@ export async function inferTemplate(input: {
   prompt: string;
 }): Promise<{ template: string; inferred: boolean }> {
   const names = Object.keys(input.tenant.templates ?? {});
-  if (names.length === 0) throw new Error(`Tenant ${input.tenant.slug} has no templates.`);
+  const fallback = primaryTemplate(input.tenant);
   if (names.length === 1 || !copyGenerationAvailable()) {
-    return { template: names[0], inferred: false };
+    return { template: fallback, inferred: false };
   }
 
   const described = names
     .map((name) => {
       const template = input.tenant.templates[name];
-      const rules = Object.values(template.slide_specs)
-        .map((spec) => spec.rule)
-        .filter(Boolean)
-        .join(" ");
-      return `- ${name}: ${template.structure.join(" → ")}. ${rules}`;
+      // Which slide carries the legal text is a property of the template, not a
+  // constant: a myth buster has no protocol slide.
+  const disclaimerSlide =
+    template.structure.find((name) =>
+      template.slide_specs[name]?.elements?.includes("disclaimer"),
+    ) ?? template.structure[template.structure.length - 1];
+
+  const min = minimumSlides(template);
+      const max = template.structure.length;
+      const shape = `${min === max ? max : `${min}–${max}`} slides: ${template.structure.join(" → ")}`;
+      const what =
+        template.use_when ??
+        Object.values(template.slide_specs)
+          .map((spec) => spec.rule)
+          .filter(Boolean)
+          .join(" ");
+      return `- ${name} (${shape}). ${what}`;
     })
     .join("\n");
 
@@ -109,6 +139,8 @@ export async function inferTemplate(input: {
           type: "text",
           text: [
             "Pick the template that best fits a post request.",
+            "Choose on what the request is, not on how long it is: the most specific fit wins.",
+            `If nothing fits better than the rest, answer "${fallback}".`,
             "Answer with the template name alone. No punctuation, no explanation.",
             "Templates:",
             described,
@@ -123,10 +155,17 @@ export async function inferTemplate(input: {
       .join("")
       .trim()
       .toLowerCase();
-    const match = names.find((name) => answer.includes(name.toLowerCase()));
-    return match ? { template: match, inferred: true } : { template: names[0], inferred: false };
+    // Longest first, so a name that contains another cannot shadow it.
+    const match =
+      names.find((name) => name.toLowerCase() === answer) ??
+      [...names]
+        .sort((a, b) => b.length - a.length)
+        .find((name) => answer.includes(name.toLowerCase()));
+    return match
+      ? { template: match, inferred: true }
+      : { template: fallback, inferred: false };
   } catch {
-    return { template: names[0], inferred: false };
+    return { template: fallback, inferred: false };
   }
 }
 
@@ -151,7 +190,7 @@ export async function generateCarouselCopy(
 
   const schema = carouselSchemaFor(template);
   const userContent = [
-    `Write one ${templateName} carousel about: ${prompt}`,
+    `Write one ${templateName} post about: ${prompt}`,
     reference ? `\nSource material to work from:\n${reference}` : "",
   ]
     .join("\n")

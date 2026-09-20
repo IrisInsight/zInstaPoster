@@ -81,7 +81,7 @@ function installFakeGraph() {
 before(() => installFakeGraph());
 
 async function makePost(
-  overrides: { approvedBy?: string | null; status?: string } = {},
+  overrides: { approvedBy?: string | null; status?: string; slides?: number } = {},
 ) {
   const db = await getDb();
   const existing = await db.select().from(tenant);
@@ -129,11 +129,15 @@ async function makePost(
     })
     .returning();
 
+  const count = overrides.slides ?? 4;
   await db.insert(slide).values(
-    [1, 2, 3, 4].map((position) => ({
+    Array.from({ length: count }, (_, index) => index + 1).map((position) => ({
       postId: created.id,
       position,
-      type: ["hook", "cause", "protocol", "cta"][position - 1],
+      type:
+        count === 1
+          ? "statement"
+          : (["hook", "cause", "protocol", "cta"][position - 1] ?? "cause"),
       copy: { headline: `Slide ${position}` },
       altText: `Slide ${position} alt text`,
       renderedUrl: `https://blob.example.com/posts/${created.id}/slides/${position}.jpg`,
@@ -149,6 +153,34 @@ beforeEach(() => {
   calls = [];
   containerStatus = "FINISHED";
   failOn = null;
+});
+
+test("a single card publishes as one image, not a carousel of one", async () => {
+  const { postId } = await makePost({ slides: 1 });
+  const result = await publishPostById({ postId, actorLabel: "test" });
+  assert.equal(result.status, "published", result.error);
+
+  assert.equal(
+    calls.filter((c) => c.body.is_carousel_item === "true").length,
+    0,
+    "a one-slide post has no carousel children",
+  );
+  assert.equal(
+    calls.filter((c) => c.body.media_type === "CAROUSEL").length,
+    0,
+    "and no parent container — Instagram rejects a carousel of one",
+  );
+
+  // The caption and alt text ride on the image container itself, because
+  // there is no parent to hang them on.
+  const container = calls.find((c) => c.body.image_url);
+  assert.ok(container, "an image container is created");
+  assert.match(container.body.caption, /Brain fog/);
+  assert.ok(container.body.alt_text, "alt text is still sent");
+
+  const publish = calls.find((c) => c.url.includes("/media_publish"));
+  assert.ok(publish, "media_publish is called");
+  assert.equal(publish.body.creation_id, "container-1");
 });
 
 test("publishes a carousel in three steps, at fire time", async () => {
@@ -282,9 +314,24 @@ test("preflight rejects the failure modes that fail silently at Meta", () => {
     /public https URLs/,
   );
 
+  // One slide is a single image post, not a malformed carousel.
+  assert.doesNotThrow(() =>
+    assertPublishable({ ...base, slides: base.slides.slice(0, 1) }),
+  );
   assert.throws(
-    () => assertPublishable({ ...base, slides: base.slides.slice(0, 1) }),
-    /between 2 and 10 slides/,
+    () => assertPublishable({ ...base, slides: [] }),
+    /this post has 0/,
+  );
+  assert.throws(
+    () =>
+      assertPublishable({
+        ...base,
+        slides: Array.from({ length: 11 }, (_, i) => ({
+          ...base.slides[0],
+          position: i + 1,
+        })),
+      }),
+    /this post has 11/,
   );
 
   assert.throws(

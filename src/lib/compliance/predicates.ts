@@ -328,12 +328,18 @@ const requiresOneOf: Predicate = (ctx) => {
 };
 
 /**
- * When any of `triggers` appears anywhere in the post, the named slide type
- * must carry `disclaimer_text`. Compounded-product disclaimers work this way.
+ * When any of `triggers` appears anywhere in the post, one of the named slide
+ * types must carry `disclaimer_text`. Compounded-product disclaimers work this
+ * way. `slide_types` lists every slide that may carry it — which slide that is
+ * depends on the template, so a rule that named only one would pass a post
+ * simply for using a different template.
  */
 const conditionalDisclaimer: Predicate = (ctx) => {
   const triggers = strings(ctx.rule.params, "triggers");
-  const slideType = (ctx.rule.params?.slide_type as string) ?? "protocol";
+  const named = strings(ctx.rule.params, "slide_types");
+  const slideTypes = named.length
+    ? named
+    : [(ctx.rule.params?.slide_type as string) ?? "protocol"];
   const text =
     typeof ctx.rule.params?.disclaimer_text === "string"
       ? (ctx.rule.params.disclaimer_text as string)
@@ -347,7 +353,7 @@ const conditionalDisclaimer: Predicate = (ctx) => {
   const triggered = triggers.some((t) => literalPattern(t).test(haystack));
   if (!triggered) return [];
 
-  const slides = ctx.subject.slides.filter((s) => s.type === slideType);
+  const slides = ctx.subject.slides.filter((s) => slideTypes.includes(s.type));
   if (slides.length === 0) {
     // The trigger fired and there is nowhere for the disclaimer to appear.
     // Passing here would mean deleting the slide removes the requirement.
@@ -355,7 +361,7 @@ const conditionalDisclaimer: Predicate = (ctx) => {
       finding(
         ctx,
         { field: "post", label: "Post" },
-        `A ${triggers.length === 1 ? triggers[0] : "restricted"} product is named but this post has no ${slideType} slide to carry the required disclaimer.`,
+        `A ${triggers.length === 1 ? triggers[0] : "restricted"} product is named but this post has no ${slideTypes.join(" or ")} slide to carry the required disclaimer.`,
       ),
     ];
   }

@@ -15,6 +15,21 @@ const STEPS: { id: PipelineStep; label: string }[] = [
   { id: "running_compliance", label: "Running compliance checks" },
 ];
 
+export interface TemplateOption {
+  name: string;
+  slides: number;
+  /** Fewer than `slides` when the template's last slides are optional. */
+  minSlides: number;
+  useWhen: string;
+}
+
+function slideCount({ minSlides, slides }: TemplateOption): string {
+  if (slides === 1) return "1 slide";
+  return minSlides === slides
+    ? `${slides} slides`
+    : `${minSlides}–${slides} slides`;
+}
+
 export function ComposeForm({
   tenantName,
   templates,
@@ -23,7 +38,7 @@ export function ComposeForm({
   photoAvailable,
 }: {
   tenantName: string;
-  templates: string[];
+  templates: TemplateOption[];
   accounts: { id: string; username: string; status: string }[];
   copyAvailable: boolean;
   photoAvailable: boolean;
@@ -34,7 +49,7 @@ export function ComposeForm({
   // Empty means "let the model infer it". With one template there is
   // nothing to infer, so it is preselected.
   const [template, setTemplate] = useState(
-    templates.length === 1 ? templates[0] : "",
+    templates.length === 1 ? templates[0].name : "",
   );
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [reference, setReference] = useState("");
@@ -44,8 +59,17 @@ export function ComposeForm({
     STEPS.map((s) => ({ ...s, status: "waiting" })),
   );
   const [headlines, setHeadlines] = useState<string[]>([]);
-  const [slides, setSlides] = useState<(string | null)[]>([null, null, null, null]);
+  const [resolved, setResolved] = useState<TemplateOption | null>(null);
+  const [slides, setSlides] = useState<(string | null)[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+
+  const picked = templates.find((t) => t.name === template) ?? null;
+  // Until the pipeline says which template it resolved, lay out slots for the
+  // one that was picked; with nothing picked, the longest template it could be.
+  const expectedSlides =
+    resolved?.slides ??
+    picked?.slides ??
+    Math.max(...templates.map((t) => t.slides), 1);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -54,7 +78,8 @@ export function ComposeForm({
     setRunning(true);
     setError(null);
     setHeadlines([]);
-    setSlides([null, null, null, null]);
+    setResolved(picked);
+    setSlides(Array.from({ length: expectedSlides }, () => null));
     setSteps(STEPS.map((s) => ({ ...s, status: "waiting" })));
 
     const controller = new AbortController();
@@ -106,6 +131,25 @@ export function ComposeForm({
 
   function handle(event: PipelineEvent) {
     switch (event.type) {
+      case "template": {
+        const match = templates.find((t) => t.name === event.name);
+        setResolved(
+          match ?? {
+            name: event.name,
+            slides: event.slides,
+            minSlides: event.slides,
+            useWhen: "",
+          },
+        );
+        setSlides((prev) => {
+          const next = Array.from({ length: event.slides }, () => null as string | null);
+          prev.forEach((url, index) => {
+            if (index < next.length) next[index] = url;
+          });
+          return next;
+        });
+        break;
+      }
       case "step":
         setSteps((prev) =>
           prev.map((s) =>
@@ -129,6 +173,9 @@ export function ComposeForm({
       case "slide":
         setSlides((prev) => {
           const next = [...prev];
+          // The writer can return fewer slides than the template's maximum,
+          // and a picked template can be overridden — grow to fit either way.
+          while (next.length < event.position) next.push(null);
           next[event.position - 1] = event.url;
           return next;
         });
@@ -152,10 +199,14 @@ export function ComposeForm({
         steps={steps}
         headlines={headlines}
         slides={slides}
+        template={resolved?.name ?? null}
+        inferred={resolved !== null && resolved.name !== template}
         error={error}
         onCancel={() => {
           abortRef.current?.abort();
           setRunning(false);
+          setResolved(null);
+          setSlides([]);
           setSteps(STEPS.map((s) => ({ ...s, status: "waiting" })));
         }}
       />
@@ -166,7 +217,8 @@ export function ComposeForm({
     <form onSubmit={submit}>
       <h1 className="text-[17px] font-semibold tracking-tight">New post</h1>
       <p className="mt-0.5 text-[12.5px] text-[var(--color-muted)]">
-        {tenantName} · one prompt, four slides, reviewed before anything publishes.
+        {tenantName} · one prompt, a whole post, reviewed before anything
+        publishes.
       </p>
 
       {!copyAvailable && (
@@ -177,8 +229,8 @@ export function ComposeForm({
       )}
       {copyAvailable && !photoAvailable && (
         <p className="mt-3 rounded-md border border-[#e8d6a8] bg-[var(--color-warn-soft)] px-3 py-2 text-[12.5px] text-[var(--color-warn)]">
-          GEMINI_API_KEY is not set. Hook slides will render with a placeholder
-          instead of a photo.
+          GEMINI_API_KEY is not set. Slides that carry a photo will render with a
+          placeholder instead.
         </p>
       )}
 
@@ -212,13 +264,14 @@ export function ComposeForm({
                 <option value="">Infer from the prompt</option>
               )}
               {templates.map((t) => (
-                <option key={t} value={t}>
-                  {t.replace(/_/g, " ")}
+                <option key={t.name} value={t.name}>
+                  {t.name.replace(/_/g, " ")} · {slideCount(t)}
                 </option>
               ))}
             </select>
             <span className="mt-1 block font-normal text-[11px] text-[var(--color-faint)]">
-              Inferred from the prompt when it can be. This is an override.
+              {picked?.useWhen ||
+                "Inferred from the prompt when it can be. This is an override."}
             </span>
           </label>
 

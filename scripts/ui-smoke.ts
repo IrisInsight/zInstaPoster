@@ -69,7 +69,7 @@ async function main() {
   console.log("  ✓ /login");
 
   await visit("/", ["Queue"]);
-  await visit("/compose", ["New post", "one prompt, four slides"]);
+  await visit("/compose", ["New post", "one prompt, a whole post"]);
   await visit("/accounts", ["Accounts", "Instagram Login"]);
 
   const queueHtml = await page.evaluate(async () => {

@@ -18,15 +18,22 @@ export function GeneratingPanel({
   steps,
   headlines,
   slides,
+  template,
+  inferred,
   error,
   onCancel,
 }: {
   steps: StepState[];
   headlines: string[];
   slides: (string | null)[];
+  /** The template the pipeline resolved, once it has. */
+  template?: string | null;
+  /** True when the model picked it rather than the person. */
+  inferred?: boolean;
   error: string | null;
   onCancel: () => void;
 }) {
+  const count = slides.length;
   return (
     <div className="fade-up">
       <h1 className="text-[17px] font-semibold tracking-tight">
@@ -35,8 +42,14 @@ export function GeneratingPanel({
       <p className="mt-0.5 text-[12.5px] text-[var(--color-muted)]">
         {error
           ? "Nothing was published. Fix the problem and run it again."
-          : "Four slides, written, photographed, rendered and checked."}
+          : `${count === 1 ? "One slide" : `${count} slides`}, written, photographed, rendered and checked.`}
       </p>
+      {!error && template && (
+        <p className="mt-1 text-[11.5px] text-[var(--color-faint)]">
+          Template: {template.replace(/_/g, " ")}
+          {inferred ? " — inferred from the prompt" : ""}
+        </p>
+      )}
 
       <ol className="mt-5 space-y-px overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)]">
         {steps.map((step) => (
@@ -93,7 +106,9 @@ export function GeneratingPanel({
           {slides.map((url, index) => (
             <div
               key={index}
-              className="relative w-1/4 overflow-hidden rounded-[3px] border border-[var(--color-line)] bg-[var(--color-canvas)]"
+              // A single card is one thumbnail, not one stretched across the
+              // panel, so the slot keeps a carousel slide's width.
+              className="relative w-1/4 shrink-0 overflow-hidden rounded-[3px] border border-[var(--color-line)] bg-[var(--color-canvas)]"
               style={{ aspectRatio: "4 / 5" }}
             >
               {url ? (

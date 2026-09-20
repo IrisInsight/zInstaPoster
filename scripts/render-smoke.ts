@@ -1,7 +1,7 @@
 /**
  * Build-order step 1 verification.
  *
- * Renders all four slides of a seed carousel, stores them, then fetches each
+ * Renders every slide of a seed carousel, stores them, then fetches each
  * stored URL back over HTTP and asserts the bytes are a valid JPEG at the
  * tenant's exact dimensions and under Instagram's 8MB limit.
  *
@@ -26,14 +26,22 @@ async function main() {
       path.join(process.cwd(), "content", "precision-vitality-carousels.json"),
       "utf8",
     ),
-  ) as { carousels: { slug: string; kicker: string; slides: Record<string, unknown>[] }[] };
+  ) as {
+    template?: string;
+    carousels: {
+      slug: string;
+      kicker: string;
+      template?: string;
+      slides: Record<string, unknown>[];
+    }[];
+  };
 
   const carousel = seeds.carousels.find((c) => c.slug === slug);
   if (!carousel) throw new Error(`No seed carousel "${slug}".`);
 
   await mkdir(OUT, { recursive: true });
   console.log(`tenant  : ${tenant.name}`);
-  console.log(`carousel: ${carousel.slug}`);
+  console.log(`carousel: ${carousel.slug}  (${carousel.template ?? seeds.template ?? "symptom_carousel"}, ${carousel.slides.length} slides)`);
   console.log(`storage : ${storageDriver()}`);
   console.log(
     `output  : ${tenant.output.width}×${tenant.output.height} ${tenant.output.format}\n`,
@@ -49,7 +57,14 @@ async function main() {
     const t0 = Date.now();
     const rendered = await renderSlide({
       tenant,
-      slide: { position, type, copy, photoUrl: null, photoPrompt: (raw.photo_prompt as string) ?? null },
+      slide: {
+        position,
+        type,
+        copy,
+        photoUrl: null,
+        photoPrompt: (raw.photo_prompt as string) ?? null,
+        template: carousel.template ?? seeds.template,
+      },
     });
 
     if (!isJpeg(rendered.buffer)) throw new Error(`Slide ${position} is not a JPEG.`);

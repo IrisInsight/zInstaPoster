@@ -189,10 +189,13 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       "utf8",
     ),
   ) as {
+    /** The template a carousel uses unless it names its own. */
+    template?: string;
     carousels: {
       slug: string;
       kicker: string;
       caption: string;
+      template?: string;
       slides: Record<string, unknown>[];
     }[];
   };
@@ -209,7 +212,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       .insert(post)
       .values({
         tenantId: pv.id,
-        template: "symptom_carousel",
+        template: carousel.template ?? seeds.template ?? "symptom_carousel",
         status: "draft",
         title: titleFor(carousel.slug),
         prompt: `Seed content — ${carousel.slug}`,

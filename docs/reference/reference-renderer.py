@@ -81,7 +81,8 @@ def hook(kicker, headline, script, photo):
 {kicker_block(kicker)}
     <div style="display: flex; flex-direction: column; gap: 30px;">
       <h1 style="margin: 0; font-family: {SERIF}; font-weight: 600; font-size: 78px; line-height: 1.02; letter-spacing: -0.5px; color: {NAVY};">{e(headline)}</h1>
-      <p style="margin: 0; font-family: 'Parisienne', cursive; font-size: 42px; line-height: 1.3; color: {GOLDTX};">{e(script)}</p>
+      <!-- Cormorant italic, not Parisienne: Parisienne is too thin to read in a feed. -->
+      <p style="margin: 0; font-family: {SERIF}; font-style: italic; font-weight: 600; font-size: 42px; line-height: 1.3; color: {GOLDTX};">{e(script)}</p>
     </div>
     <div style="display: flex; align-items: center; gap: 14px;">
       <span style="font-size: 14px; font-weight: 500; letter-spacing: 2.8px; text-transform: uppercase; color: {SAGE};">Swipe</span>

@@ -129,8 +129,11 @@ function PostRow({
   loud?: boolean;
 }) {
   const { post, slides, tenant } = row;
-  const headline =
-    (slides[0]?.copy as { headline?: string })?.headline ?? post.title;
+  // A single card has no headline; its one line is the statement.
+  const firstCopy = slides[0]?.copy as
+    | { headline?: string; statement?: string }
+    | undefined;
+  const headline = firstCopy?.headline ?? firstCopy?.statement ?? post.title;
   const href =
     post.status === "published" || post.status === "failed"
       ? `/posts/${post.id}`
@@ -143,7 +146,8 @@ function PostRow({
       }`}
     >
       <Link href={href} className="flex min-w-0 flex-1 items-start gap-3">
-        <div className="flex shrink-0 gap-1">
+        {/* Fixed width: a one-slide post must not shift the whole row left. */}
+        <div className="flex w-[188px] shrink-0 gap-1">
           {slides.slice(0, 4).map((slide) => (
             <SlideThumb
               key={slide.id}

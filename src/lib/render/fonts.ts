@@ -47,5 +47,18 @@ export async function fontFaceCss(): Promise<string> {
 export const FONT_FAMILIES = {
   display: "'Cormorant Garamond', Georgia, serif",
   body: "'Jost', system-ui, sans-serif",
-  script: "'Parisienne', cursive",
+  /**
+   * The script line under a hook headline. Cormorant Garamond italic, not
+   * Parisienne: at the size a feed actually renders a slide, Parisienne's
+   * hairlines thin out to nothing and the line stops being readable.
+   */
+  script: "'Cormorant Garamond', Georgia, serif",
+  /**
+   * Parisienne, still embedded and available. Nothing load-bearing is set in
+   * it — if a reader has to read it, it is not this face.
+   */
+  decorative: "'Parisienne', cursive",
 };
+
+/** Cormorant Garamond only ships an italic at 600 here, so ask for that one. */
+export const SCRIPT_STYLE = "font-style:italic;font-weight:600;";
